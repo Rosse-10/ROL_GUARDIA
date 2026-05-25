@@ -1,77 +1,191 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bienvenida</title>
+    <title>Gestión de Guardias - EMI</title>
     <style>
         body {
             margin: 0;
             font-family: 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, #667eea, #764ba2);
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             color: white;
+            padding: 20px;
         }
 
         .container {
             text-align: center;
             background: rgba(255,255,255,0.1);
-            padding: 60px;
+            padding: 40px;
             border-radius: 20px;
             backdrop-filter: blur(15px);
             box-shadow: 0 15px 40px rgba(0,0,0,0.3);
-            width: 500px;
+            width: 95%; /* Aumentado para cuadros más grandes */
+            max-width: 1100px; /* Aumentado para tu MacBook */
         }
 
-        h1 {
-            font-size: 40px;
-            margin-bottom: 10px;
+        h1 { font-size: 32px; margin-bottom: 10px; }
+        h2 { font-weight: 300; margin-bottom: 20px; font-size: 20px; }
+
+        .tabla-asignaciones {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            overflow: hidden;
+            font-size: 16px; /* Texto de tabla más legible */
         }
 
-        h2 {
-            font-weight: 300;
-            margin-bottom: 30px;
+        .tabla-asignaciones th, .tabla-asignaciones td {
+            padding: 18px; /* Más espacio en las celdas */
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
 
-        p {
-            font-size: 18px;
-            opacity: 0.9;
+        .tabla-asignaciones th {
+            background: rgba(255,255,255,0.2);
+            font-weight: 600;
+            color: #4ecdc4;
         }
 
         .btn {
-            margin-top: 30px;
-            padding: 12px 25px;
-            background: white;
-            color: #764ba2;
-            border: none;
+            padding: 10px 20px;
             border-radius: 30px;
-            font-size: 16px;
+            font-size: 14px;
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
             transition: 0.3s;
+            border: none;
+            margin: 5px;
         }
 
-        .btn:hover {
-            background: #f8f9fc;
-            transform: scale(1.05);
-        }
+        .btn-white { background: white; color: #764ba2; }
+        .btn-add { background: #4ecdc4; color: white; margin-bottom: 20px; font-weight: bold; }
+        .btn-edit { background: #ffca28; color: #333; }
+        .btn-delete { background: #ff5252; color: white; }
 
-        .emoji {
-            font-size: 60px;
-            margin-bottom: 20px;
-        }
+        .btn:hover { transform: scale(1.05); opacity: 0.9; }
+        .emoji { font-size: 50px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
+        {% block content %}
+
         <div class="emoji">🚀</div>
         <h1>Bienvenida, {{ user.username }}!</h1>
-        <h2>Has iniciado sesión correctamente</h2>
-        <p>Este es tu espacio privado. Aquí puedes comenzar a construir tu proyecto increíble.</p>
+        <h2>Panel de Gestión de Guardias - EMI</h2>
 
-        <a href="{% url 'registro' %}" class="btn">Cerrar sesión</a>
-    </div>
-</body>
+        {% if user.is_superuser %}
+        <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+            <a href="{% url 'lista_estudiantes' %}" target="_blank" class="btn btn-white" style="background: #4a90e2; color: white; border: none;">📋 Ver Lista Global</a>
+            <a href="{% url 'nuevo_estudiante' %}" class="btn btn-white" style="border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.2); color: white;">👤 Nuevo Estudiante</a>
+            <a href="{% url 'nueva_guardia' %}" class="btn btn-white" style="border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.2); color: white;">📅 Definir Horarios</a>
+            <a href="{% url 'nueva_carrera' %}" class="btn btn-white" style="border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.2); color: white;">🎓 Nueva Carrera</a>
+            <a href="{% url 'crear_asignacion' %}" class="btn btn-add" style="background: #20ff1b; color: #1a5c18; margin-bottom: 0;">➕ Asignar Manual</a>
+            
+
+            {% if g.id %}
+            <a href="{% url 'sortear_mes' g.id %}" class="btn">🎲 Realizar Sorteo</a>
+            {% endif %}
+        
+        </div> 
+        {% endif %}
+
+        <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; margin-bottom: 30px;">
+            <form method="GET" action="{% url 'home' %}" style="display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap;">
+                <label style="font-weight: bold;">📅 Ver Mes:</label>
+                <select name="mes_filtro" class="btn btn-white" style="color: #333; padding: 8px 15px;">
+                    {% for m in meses %}
+                        <option value="{{ m.id }}" {% if mes_seleccionado.id == m.id %}selected{% endif %}>
+                            Mes {{ m.mes }} - {{ m.anio }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-add" style="margin:0; background: #667eea;">🔍 Buscar</button>
+            </form>
+        </div>
+
+        <hr style="opacity: 0.2; margin: 30px 0;">
+
+
+
+        <h3 style="margin-bottom: 25px; font-size: 24px;">Programación Mensual:</h3>
+
+        {% for g in guardias %}
+            <div style="background: rgba(255,255,255,0.15); border-radius: 25px; padding: 35px; margin-bottom: 40px; border: 1px solid rgba(255,255,255,0.2); text-align: left; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid rgba(78, 205, 196, 0.3); padding-bottom: 15px;">
+                    <h2 style="margin: 0; color: #4ecdc4; font-size: 26px; font-weight: bold; letter-spacing: 1px;">
+                        🗓️ Grupo de guardia #{{ forloop.counter }}
+                    </h2>
+                
+                    {% if user.is_superuser %}
+                        <div style="display: flex; gap: 12px;">
+                            
+                                <a href="{% url 'sortear_mes' g.id %}" class="btn" style="background: #ff8c00; color: white; margin: 0; padding: 10px 20px; font-weight: bold;">🎲 SORTEAR</a>
+                        
+                            <form action="{% url 'eliminar_guardia' g.id %}" method="POST" style="display:inline;" onsubmit="return confirm('¿Seguro que quieres eliminar esta guardia completa?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-delete" style="padding: 10px 20px; margin: 0; font-weight: bold;">
+                                    🗑️ Eliminar Tabla
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <table class="tabla-asignaciones" style="background: transparent;">
+                    <thead>
+                        <tr>
+                            <th>Año</th>
+                            <th>Estudiante</th>
+                            <th>Rol Asignado</th>
+                            {% if user.is_superuser %}
+                            <th style="text-align: center;">Acciones</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in g.asignacion_set.all %}
+                        <tr>    
+                            <td>{{ a.estudiante.anio }}° Año</td>
+                            <td>{{ a.estudiante.nombre }} {{ a.estudiante.apellido }}</td>
+                            <td><b style="color: #ffca28; font-size: 18px;">{{ a.rol.nombre }}</b></td>
+                            {% if user.is_superuser %}
+                            <td style="text-align: center;">
+                                <a href="{% url 'editar_asignacion' a.id %}" class="btn btn-edit" style="padding: 8px 15px;">✏️ Editar</a>
+                                <a href="{% url 'eliminar_asignacion' a.id %}" class="btn btn-delete" style="padding: 8px 15px;">🗑️ Borrar</a>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 30px; opacity: 0.8; font-style: italic;">
+                                ⚠️ Guardia vacía. Presiona "Sortear" para asignar los estudiantes.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% empty %}
+            <p style="text-align: center; color: white; opacity: 0.7; font-size: 18px; padding: 40px;">No hay guardias creadas para este mes.</p>
+        {% endfor %}
+
+        <div style="margin-top: 60px; padding: 30px 0; border-top: 1px solid rgba(255,255,255,0.1); text-align: center; width: 100%;">
+            <form action="{% url 'logout' %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-white" style="background: white; color: #6a11cb; font-weight: bold; border-radius: 20px; padding: 12px 40px; font-size: 16px;">
+                    🚪 Cerrar sesión
+                </button>
+            </form>
+        </div>
+
+        {% endblock %}
+    </div> </body>
 </html>
