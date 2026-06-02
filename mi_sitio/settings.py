@@ -122,3 +122,9 @@ STATICFILES_DIRS =[BASE_DIR /"static"]
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
+
+# CONFIGURACIÓN DE AUTENTICACIÓN PERSONALIZADA 
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Mantiene el acceso de Superusuarios
+    'inicio.authentication.EstudianteAuthBackend', # Habilita el acceso automático de estudiantes
+]

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lista de Estudiantes - EMI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            margin: 0;
+            padding: 30px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        h1 { text-align: center; margin-bottom: 30px; }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .btn-primary { background-color: #28a745; }
+        .btn-primary:hover { background-color: #218838; }
+        .btn-home { background-color: #6c757d; float: right; }
+        .btn-edit { background-color: #ffc107; color: black; padding: 5px 10px; font-size: 14px; }
+        .btn-delete { background-color: #dc3545; padding: 5px 10px; font-size: 14px; }
+        
+        .carrera-section {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 5px solid #ffc107;
+        }
+        .carrera-title { font-size: 24px; color: #ffc107; margin-top: 0; }
+        .anio-title { font-size: 18px; color: #e0e0e0; margin: 15px 0 5px 0; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;}
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            background: rgba(255,255,255,0.05);
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        th { background: rgba(0,0,0,0.3); color: #fff; }
+        tr:hover { background: rgba(255,255,255,0.1); }
+        .acciones { text-align: right; }
+        .vacio { font-style: italic; opacity: 0.6; padding: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Volver al Inicio</a>
+    <h1>📋 Control de Personal (Estudiantes EMI)</h1>
+    
+    <a href="{% url 'nuevo_estudiante' %}" class="btn btn-primary">➕ Registrar Nuevo Estudiante</a>
+
+    {% for carrera, anios in datos_agrupados.items %}
+        <div class="carrera-section">
+            <div class="carrera-title">{{ carrera }}</div>
+            
+            {% for anio, estudiantes in anios.items %}
+                <div class="anio-title">
+                    {% if anio == 1 %}Primer Año{% elif anio == 2 %}Segundo Año{% elif anio == 3 %}Tercer Año{% else %}Cuarto Año{% endif %}
+                </div>
+                
+                {% if estudiantes %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Apellidos y Nombres</th>
+                                <th class="acciones">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for e in estudiantes %}
+                                <tr>
+                                    <td>{{ e.apellido }}, {{ e.nombre }}</td>
+                                    <td class="acciones">
+                                        <a href="{% url 'editar_estudiante' e.id %}" class="btn btn-edit">✏️ Editar</a>
+                                        <a href="{% url 'eliminar_estudiante' e.id %}" class="btn btn-delete">🗑️ Eliminar</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="vacio">No hay estudiantes registrados en este año.</p>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endfor %}
+</div>
+
+</body>
+</html>
