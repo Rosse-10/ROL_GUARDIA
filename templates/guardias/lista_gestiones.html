@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gestiones Académicas - EMI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            margin: 0;
+            padding: 30px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        h1 { text-align: center; margin-bottom: 5px; }
+        h2 { text-align: center; color: #ffc107; font-weight: 400; font-size: 1.2rem; margin-bottom: 30px; }
+        
+        .btn {
+            display: inline-block;
+            padding: 8px 15px;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-home { background-color: #6c757d; float: right; }
+        .btn-primary { background-color: #28a745; margin-bottom: 20px; font-size: 14px; padding: 10px 20px; }
+        .btn-primary:hover { background-color: #218838; }
+        
+        .btn-edit { background-color: #ffc107; color: #333; margin-right: 5px; }
+        .btn-edit:hover { background-color: #e0a800; }
+        .btn-delete { background-color: #dc3545; }
+        .btn-delete:hover { background-color: #c82333; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        th { background: rgba(0,0,0,0.4); color: #ffc107; font-weight: bold; text-transform: uppercase; font-size: 13px; }
+        tr:hover { background: rgba(255,255,255,0.08); }
+        .vacio { text-align: center; padding: 40px; font-style: italic; opacity: 0.6; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Volver al Inicio</a>
+    <h1>📅 Gestiones Académicas</h1>
+    <h2>Control de Periodos y Ciclos Lectivos</h2>
+
+    <a href="{% url 'nueva_gestion' %}" class="btn btn-primary">➕ Registrar Nueva Gestión</a>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre de Gestión</th>
+                <th>Fecha de Inicio</th>
+                <th>Fecha de Fin</th>
+                <th>Estado</th>
+                <th style="text-align: center;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in gestiones %}
+                <tr>
+                    <td>{{ g.nombre }}</td>
+                    <td>{{ g.fecha_inicio }}</td>
+                    <td>{{ g.fecha_fin }}</td>
+                    <td>
+                        {% if g.activa %}
+                            <span style="color: #28a745; font-weight: bold;">● Activa</span>
+                        {% else %}
+                            <span style="color: #6c757d;">Inactiva</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="{% url 'editar_gestion' g.id %}" class="btn btn-edit">✏️ Editar</a>
+                        <a href="{% url 'eliminar_gestion' g.id %}" class="btn btn-delete" onclick="return confirm('¿Estás seguro de eliminar esta gestión?');">🗑️ Eliminar</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="5" class="vacio">No hay gestiones académicas registradas todavía.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

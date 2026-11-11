@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gestión de Ausencias - EMI Trópico</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #112233, #1e3c72);
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #ffc107;
+            margin-bottom: 25px;
+            position: relative;
+        }
+        .header h1 { margin: 0; font-size: 2.2rem; letter-spacing: 1px; }
+        .header p { margin: 5px 0 0 0; color: #ffc107; font-size: 1.1rem; }
+        
+        .back-btn {
+            position: absolute;
+            left: 0;
+            top: 25px;
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .back-btn:hover { background: #5a6268; }
+
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255,193,7,0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .form-label { font-weight: bold; color: #ffc107; display: block; margin-bottom: 5px; }
+        .form-control, .form-select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(0,0,0,0.3);
+            color: white;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+        .row { display: flex; gap: 15px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 200px; }
+
+        .btn-submit {
+            background: #ffc107;
+            color: #112233;
+            border: none;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn-submit:hover { background: #e0a800; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        th { color: #ffc107; background: rgba(0,0,0,0.4); font-size: 0.9rem; text-transform: uppercase; }
+        tr:hover { background: rgba(255,255,255,0.05); }
+        .badge { background: #17a2b8; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
+        
+        .alert { padding: 12px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
+        .alert-success { background: rgba(40, 167, 69, 0.3); border: 1px solid #28a745; color: #28a745; }
+        .alert-danger { background: rgba(220, 53, 69, 0.3); border: 1px solid #dc3545; color: #dc3545; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <a href="{% url 'home' %}" class="back-btn">⬅️ Volver al Menú</a>
+        <h1>SISTEMA DE GESTIÓN DE SERVICIO DE GUARDIA</h1>
+        <p>Escuela Militar de Ingeniería - Unidad Académica del Trópico</p>
+    </div>
+
+    <h2 style="color: #ffc107; margin-bottom: 20px;">🛡️ Gestión de Ausencias, Licencias y Bajas</h2>
+
+    <!-- Mensajes de alerta del sistema -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario de Registro para el Oficial Administrador -->
+    <div class="card">
+        <h3 style="margin-top: 0; color: #ffc107; margin-bottom: 20px;">Registrar Nueva Ausencia / Comisión</h3>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="row">
+                <div class="col">
+                    <label class="form-label">Estudiante (Cadete)</label>
+                    <select name="estudiante" class="form-select" required>
+                        <option value="">Seleccione un cadete...</option>
+                        {% for est in estudiantes %}
+                            <option value="{{ est.id }}">{{ est.apellidos }}, {{ est.nombres }} ({{ est.anio }}° Año - {{ est.carrera }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col" style="max-width: 220px;">
+                    <label class="form-label">Tipo</label>
+                    <select name="tipo" class="form-select" required>
+                        <option value="LICENCIA">Licencia</option>
+                        <option value="SALUD">Baja Médica / Salud</option>
+                        <option value="PERMISO">Permiso Especial</option>
+                        <option value="COMISION">Comisión Oficial</option>
+                    </select>
+                </div>
+                <div class="col" style="max-width: 200px;">
+                    <label class="form-label">Fecha Inicio</label>
+                    <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" style="color-scheme: dark; cursor: pointer;" onclick="this.showPicker && this.showPicker();" required>
+                </div>
+                <div class="col" style="max-width: 200px;">
+                     <label class="form-label">Fecha Fin</label>
+                     <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" style="color-scheme: dark; cursor: pointer;" onclick="this.showPicker && this.showPicker();" required>
+                </div>
+               
+            </div>
+            <div style="margin-top: 10px;">
+                <label class="form-label">Motivo / Observación</label>
+                <textarea name="motivo" class="form-control" rows="2" placeholder="Detalle la razón..." required></textarea>
+            </div>
+            <button type="submit" class="btn-submit" style="margin-top: 10px;">➕ Registrar Ausencia</button>
+        </form>
+    </div>
+
+    <!-- Historial de Ausencias Registradas -->
+    <div class="card">
+        <h3 style="margin-top: 0; margin-bottom: 15px;">Historial de Inasistencias Activas e Históricas</h3>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Estudiante</th>
+                        <th>Tipo</th>
+                        <th>Desde</th>
+                        <th>Hasta</th>
+                        <th>Motivo</th>
+                        <th>Registrado por</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for aus in ausencias %}
+                    <tr>
+                        <td>{{ aus.estudiante.apellidos }}, {{ aus.estudiante.nombres }}</td>
+                        <td><span class="badge">{{ aus.tipo }}</span></td>
+                        <td>{{ aus.fecha_inicio|date:"d/m/Y" }}</td>
+                        <td>{{ aus.fecha_fin|date:"d/m/Y" }}</td>
+                        <td>{{ aus.motivo }}</td>
+                        <td><small style="opacity: 0.7;">{{ aus.registrado_por.username|default:"Sistema" }}</small></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; opacity: 0.6; padding: 25px;">No hay ausencias o licencias registradas.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

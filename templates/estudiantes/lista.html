@@ -83,6 +83,7 @@
                     <table>
                         <thead>
                             <tr>
+                                <th>C.I.</th>
                                 <th>Apellidos y Nombres</th>
                                 <th class="acciones">Acciones</th>
                             </tr>
@@ -90,7 +91,9 @@
                         <tbody>
                             {% for e in estudiantes %}
                                 <tr>
-                                    <td>{{ e.apellido }}, {{ e.nombre }}</td>
+                                    <td>{{ e.ci|default:"S/N" }}</td>
+                                    <!-- CORREGIDO: Usando apellidos y nombres en plural -->
+                                    <td>{{ e.apellidos }}, {{ e.nombres }}</td>
                                     <td class="acciones">
                                         <a href="{% url 'editar_estudiante' e.id %}" class="btn btn-edit">✏️ Editar</a>
                                         <a href="{% url 'eliminar_estudiante' e.id %}" class="btn btn-delete">🗑️ Eliminar</a>

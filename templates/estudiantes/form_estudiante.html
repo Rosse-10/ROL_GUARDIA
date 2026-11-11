@@ -69,7 +69,13 @@
                 {{ field }}
             </div>
         {% endfor %}
-        <button type="submit" class="btn-submit">💾 Guardar Registro</button>
+   <button type="submit" class="btn-submit">💾 Guardar Registro</button>
+        
+        <!-- Botón de Atrás agregado -->
+        <a href="{% url 'lista_estudiantes' %}" style="display: block; text-align: center; margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            ⬅️ Atrás (Volver a la Lista)
+        </a>
+
         <a href="{% url 'lista_estudiantes' %}" class="btn-cancel">❌ Cancelar</a>
     </form>
 </div>

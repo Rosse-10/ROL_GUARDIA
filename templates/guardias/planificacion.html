@@ -89,6 +89,7 @@
             padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 14px;
         }
         th { background: rgba(0,0,0,0.4); color: #ffc107; font-weight: bold; text-transform: uppercase; font-size: 13px; }
         tr:hover { background: rgba(255,255,255,0.08); }
@@ -126,29 +127,79 @@
         </form>
     </div>
 
-    <h3>📋 Rol de Servicio Acumulado</h3>
+  <h3>📋 Rol de Servicio Acumulado</h3>
     <table>
         <thead>
             <tr>
                 <th>Fecha</th>
                 <th>Comandante de Guardia (4to Año)</th>
                 <th>Sargento de Guardia (3ro Año)</th>
-                <th>Numero de Guardia (2do Año)</th>
-                <th>Numero de Guardia (2do Año)</th>
-                <th>Numero de Guardia (1ro Año)</th>
-                <th>Numero de Guardia (1ro Año)</th>
+                <th>Número de Guardia (2do Año - 1)</th>
+                <th>Número de Guardia (2do Año - 2)</th>
+                <th>Número de Guardia (1ro Año - 1)</th>
+                <th>Número de Guardia (1ro Año - 2)</th>
             </tr>
         </thead>
         <tbody>
             {% for g in guardias %}
                 <tr>
                     <td class="fecha-col">{{ g.fecha|date:"d/m/Y" }}</td>
-                    <td>{{ g.estudiante_4to.apellido }}, {{ g.estudiante_4to.nombre }}</td>
-                    <td>{{ g.estudiante_3ro.apellido }}, {{ g.estudiante_3ro.nombre }}</td>
-                    <td>{{ g.estudiante_2do_1.apellido }}, {{ g.estudiante_2do_1.nombre }}</td>
-                    <td>{{ g.estudiante_2do_2.apellido }}, {{ g.estudiante_2do_2.nombre }}</td>
-                    <td>{{ g.estudiante_1ro_1.apellido }}, {{ g.estudiante_1ro_1.nombre }}</td>
-                    <td>{{ g.estudiante_1ro_2.apellido }}, {{ g.estudiante_1ro_2.nombre }}</td>
+                    
+                    {% with detalles=g.detalles.all %}
+                        <!-- 1. Comandante de Guardia (Orden 1) -->
+                        <td>
+                            {% for d in detalles %}
+                                {% if d.puesto.orden == 1 %}
+                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+
+                        <!-- 2. Sargento de Guardia (Orden 2) -->
+                        <td>
+                            {% for d in detalles %}
+                                {% if d.puesto.orden == 2 %}
+                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+
+                        <!-- 3. Guardia 2do Año - 1 (Orden 3) -->
+                        <td>
+                            {% for d in detalles %}
+                                {% if d.puesto.orden == 3 %}
+                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+
+                        <!-- 4. Guardia 2do Año - 2 (Orden 4) -->
+                        <td>
+                            {% for d in detalles %}
+                                {% if d.puesto.orden == 4 %}
+                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+
+                        <!-- 5. Guardia 1er Año - 1 (Orden 5) -->
+                        <td>
+                            {% for d in detalles %}
+                                {% if d.puesto.orden == 5 %}
+                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+
+                        <!-- 6. Guardia 1er Año - 2 (Orden 6) -->
+                        <td>
+                            {% for d in detalles %}
+                                {% if d.puesto.orden == 6 %}
+                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                    {% endwith %}
                 </tr>
             {% empty %}
                 <tr>
@@ -156,7 +207,10 @@
                 </tr>
             {% endfor %}
         </tbody>
+       
     </table>
+
+
 </div>
 
 </body>

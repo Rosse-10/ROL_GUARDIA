@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Esquemas de Guardia - EMI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            margin: 0;
+            padding: 30px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        h1 { text-align: center; margin-bottom: 5px; }
+        h2 { text-align: center; color: #ffc107; font-weight: 400; font-size: 1.2rem; margin-bottom: 30px; }
+        
+        .btn {
+            display: inline-block;
+            padding: 8px 15px;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-home { background-color: #6c757d; float: right; }
+        .btn-primary { background-color: #28a745; margin-bottom: 20px; font-size: 14px; padding: 10px 20px; }
+        .btn-primary:hover { background-color: #218838; }
+        
+        .btn-edit { background-color: #ffc107; color: #333; margin-right: 5px; }
+        .btn-edit:hover { background-color: #e0a800; }
+        .btn-delete { background-color: #dc3545; }
+        .btn-delete:hover { background-color: #c82333; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        th { background: rgba(0,0,0,0.4); color: #ffc107; font-weight: bold; text-transform: uppercase; font-size: 13px; }
+        tr:hover { background: rgba(255,255,255,0.08); }
+        .vacio { text-align: center; padding: 40px; font-style: italic; opacity: 0.6; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="{% url 'home' %}" class="btn btn-home">🏠 Volver al Inicio</a>
+    <h1>🛡️ Esquemas de Guardia</h1>
+    <h2>Configuración de Esquemas Operativos (A / B)</h2>
+
+    <a href="{% url 'nuevo_esquema' %}" class="btn btn-primary">➕ Registrar Nuevo Esquema</a>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre del Esquema</th>
+                <th>Estado</th>
+                <th style="text-align: center;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in esquemas %}
+                <tr>
+                    <td>{{ e.nombre }}</td>
+                    <td>
+                        {% if e.activo %}
+                            <span style="color: #28a745; font-weight: bold;">● Activo</span>
+                        {% else %}
+                            <span style="color: #6c757d;">Inactivo</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="{% url 'editar_esquema' e.id %}" class="btn btn-edit">✏️ Editar</a>
+                        <a href="{% url 'eliminar_esquema' e.id %}" class="btn btn-delete" onclick="return confirm('¿Estás seguro de eliminar este esquema?');">🗑️ Eliminar</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="3" class="vacio">No hay esquemas de guardia registrados todavía.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

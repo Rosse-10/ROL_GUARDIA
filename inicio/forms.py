@@ -1,33 +1,37 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
-from .models import Estudiante, Carrera
+from .models import Estudiante
+from .models import EsquemaGuardia
+from .models import Estudiante, Gestion,EsquemaVigencia
 
-# --- Formulario de Registro de Usuarios del Sistema ---
-class RegistroForm(UserCreationForm):
-    email = forms.EmailField(required=True)
-
-    class Meta:
-        model = User
-        fields = ['username', 'email']
-        widgets = {
-            'username': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre de usuario'}),
-            'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Correo electrónico'}),
-        }
-
-# --- Formulario para el CRUD de Estudiantes (EMI del Trópico) ---
 class EstudianteForm(forms.ModelForm):
     class Meta:
         model = Estudiante
-        fields = ['nombre', 'apellido', 'anio', 'carrera']
+        fields = ['ci', 'nombres', 'apellidos', 'anio', 'carrera', 'activo', 'habilitado_desde']
         widgets = {
-            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombres'}),
-            'apellido': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Apellidos'}),
-            'anio': forms.Select(attrs={'class': 'form-select'}),
-            'carrera': forms.Select(attrs={'class': 'form-select'}),
+            'ci': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Cédula de Identidad'}),
+            'nombres': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombres'}),
+            'apellidos': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Apellidos'}),
+            'anio': forms.Select(attrs={'class': 'form-control'}),
+            'carrera': forms.Select(attrs={'class': 'form-control'}),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'habilitado_desde': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Forzar que el campo carrera muestre las opciones dinámicamente desde la BD
-        self.fields['carrera'].empty_label = "Seleccione la Carrera"
+
+class GestionForm(forms.ModelForm):
+    class Meta:
+        model = Gestion
+        fields = ['nombre', 'fecha_inicio', 'fecha_fin', 'activa']
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Gestión 2026'}),
+            'fecha_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_fin': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'activa': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+
+class EsquemaGuardiaForm(forms.ModelForm):
+    class Meta:
+        model = EsquemaGuardia
+        fields = ['nombre', 'activo']
