@@ -371,97 +371,423 @@ def gestion_ausencias(request):
         'estudiantes': estudiantes
     })
 
+# ==========================================================
+# GESTIÓN DE CAMBIOS Y PERMUTAS
+# ADMINISTRADOR: FORMULARIO + HISTORIAL + APROBACIONES
+# ESTUDIANTE: SOLAMENTE FORMULARIO DE SOLICITUD
+# ==========================================================
+
 @login_required
 def gestion_permutas(request):
-    """Módulo para solicitar, autorizar y ejecutar cambios y permutas de guardia"""
+
+    # ==========================================
+    # IDENTIFICAR AL USUARIO Y SU ROL
+    # ==========================================
+
+    es_admin = request.user.is_superuser
+    estudiante_actual = None
+
+    if not es_admin:
+
+        # Buscar al estudiante utilizando su CI
+        estudiante_actual = Estudiante.objects.filter(
+            ci=request.user.username
+        ).first()
+
+        if not estudiante_actual:
+            messages.error(
+                request,
+                "No se encontró un estudiante asociado a esta cuenta."
+            )
+            return redirect('home')
+
+    hoy = timezone.now().date()
+
+    # ==========================================
+    # PROCESAR SOLICITUDES DEL FORMULARIO
+    # ==========================================
+
     if request.method == 'POST':
+
         accion = request.POST.get('accion')
 
-        # Acción 1: Crear la solicitud de permuta/reemplazo
+        # --------------------------------------
+        # CREAR SOLICITUD DE CAMBIO O PERMUTA
+        # --------------------------------------
+
         if accion == 'crear':
+
             tipo = request.POST.get('tipo')
             detalle_origen_id = request.POST.get('detalle_origen')
+            detalle_destino_id = request.POST.get('detalle_destino')
             estudiante_destino_id = request.POST.get('estudiante_destino')
-            detalle_destino_id = request.POST.get('detalle_destino') or None
-            motivo = request.POST.get('motivo')
+            motivo = request.POST.get('motivo', '').strip()
 
-            # Obtener el detalle origen para extraer al estudiante solicitante automáticamente
-            detalle_orig = get_object_or_404(DetalleGuardia, id=detalle_origen_id)
-            estudiante_origen = detalle_orig.estudiante
+            try:
 
-            if estudiante_destino_id and int(estudiante_destino_id) == estudiante_origen.id:
-                messages.error(request, "Error: El cadete de origen y destino no pueden ser el mismo.")
+                detalle_origen = DetalleGuardia.objects.select_related(
+                    'estudiante',
+                    'guardia'
+                ).get(
+                    id=detalle_origen_id
+                )
+
+                # El estudiante solo puede solicitar cambios
+                # sobre una guardia que le pertenece.
+                if not es_admin and detalle_origen.estudiante != estudiante_actual:
+
+                    messages.error(
+                        request,
+                        "No puedes solicitar cambios sobre la guardia de otro estudiante."
+                    )
+                    return redirect('gestion_permutas')
+
+                # Verificar que la guardia todavía sea futura
+                if detalle_origen.guardia.fecha < hoy:
+
+                    messages.error(
+                        request,
+                        "No puedes solicitar cambios sobre una guardia pasada."
+                    )
+                    return redirect('gestion_permutas')
+
+                detalle_destino = None
+                estudiante_destino = None
+
+                # ----------------------------------
+                # VALIDAR PERMUTA
+                # ----------------------------------
+
+                if tipo == 'PERMUTA':
+
+                    if not detalle_destino_id:
+
+                        messages.error(
+                            request,
+                            "Debes seleccionar la guardia del estudiante con quien deseas intercambiar."
+                        )
+                        return redirect('gestion_permutas')
+
+                    detalle_destino = DetalleGuardia.objects.select_related(
+                        'estudiante',
+                        'guardia'
+                    ).get(
+                        id=detalle_destino_id
+                    )
+
+                    if detalle_destino.id == detalle_origen.id:
+
+                        messages.error(
+                            request,
+                            "No puedes intercambiar una guardia contigo mismo."
+                        )
+                        return redirect('gestion_permutas')
+
+                    if detalle_destino.guardia.fecha < hoy:
+
+                        messages.error(
+                            request,
+                            "No puedes seleccionar una guardia pasada."
+                        )
+                        return redirect('gestion_permutas')
+
+                    estudiante_destino = detalle_destino.estudiante
+
+                # ----------------------------------
+                # VALIDAR REEMPLAZO
+                # ----------------------------------
+
+                elif tipo == 'REEMPLAZO':
+
+                    if not estudiante_destino_id:
+
+                        messages.error(
+                            request,
+                            "Debes seleccionar al estudiante que realizará el reemplazo."
+                        )
+                        return redirect('gestion_permutas')
+
+                    estudiante_destino = Estudiante.objects.get(
+                        id=estudiante_destino_id,
+                        activo=True
+                    )
+
+                    if estudiante_destino == detalle_origen.estudiante:
+
+                        messages.error(
+                            request,
+                            "No puedes seleccionarte a ti mismo como reemplazante."
+                        )
+                        return redirect('gestion_permutas')
+
+                else:
+
+                    messages.error(
+                        request,
+                        "El tipo de solicitud no es válido."
+                    )
+                    return redirect('gestion_permutas')
+
+                # ----------------------------------
+                # REGISTRAR SOLICITUD
+                # ----------------------------------
+
+                Cambio.objects.create(
+                    tipo=tipo,
+                    detalle_origen=detalle_origen,
+                    detalle_destino=detalle_destino,
+                    estudiante_origen=detalle_origen.estudiante,
+                    estudiante_destino=estudiante_destino,
+                    motivo=motivo,
+                    estado='PENDIENTE'
+                )
+
+                messages.success(
+                    request,
+                    "La solicitud se registró correctamente y está pendiente de aprobación."
+                )
+
+            except DetalleGuardia.DoesNotExist:
+
+                messages.error(
+                    request,
+                    "No se encontró la guardia seleccionada."
+                )
+
+            except Estudiante.DoesNotExist:
+
+                messages.error(
+                    request,
+                    "No se encontró el estudiante seleccionado."
+                )
+
+            return redirect('gestion_permutas')
+
+        # --------------------------------------
+        # APROBAR O RECHAZAR SOLICITUD
+        # --------------------------------------
+
+        elif accion in ['aprobar', 'rechazar']:
+
+            if not es_admin:
+
+                messages.error(
+                    request,
+                    "No tienes permiso para resolver solicitudes."
+                )
                 return redirect('gestion_permutas')
 
-            Cambio.objects.create(
-                tipo=tipo,
-                detalle_origen_id=detalle_origen_id,
-                detalle_destino_id=detalle_destino_id,
-                estudiante_origen=estudiante_origen,
-                estudiante_destino_id=estudiante_destino_id if estudiante_destino_id else None,
-                motivo=motivo,
-                estado='PENDIENTE'
-            )
-            messages.success(request, "Solicitud de permuta/reemplazo registrada correctamente.")
-            return redirect('gestion_permutas')
-
-        # Acción 2: Aprobación o Rechazo por el Oficial Administrador
-        elif accion in ['aprobar', 'rechazar'] and request.user.is_superuser:
             cambio_id = request.POST.get('cambio_id')
-            cambio = get_object_or_404(Cambio, id=cambio_id)
-            observacion = request.POST.get('observacion', '')
+            observacion = request.POST.get('observacion', '').strip()
 
-            if accion == 'aprobar':
-                cambio.estado = 'ACEPTADO'
+            try:
+
+                cambio = Cambio.objects.select_related(
+                    'detalle_origen',
+                    'detalle_destino',
+                    'estudiante_destino'
+                ).get(
+                    id=cambio_id
+                )
+
+                if cambio.estado != 'PENDIENTE':
+
+                    messages.warning(
+                        request,
+                        "Esta solicitud ya fue resuelta anteriormente."
+                    )
+                    return redirect('gestion_permutas')
+
+                # ----------------------------------
+                # APROBAR SOLICITUD
+                # ----------------------------------
+
+                if accion == 'aprobar':
+
+                    if cambio.tipo == 'PERMUTA':
+
+                        if not cambio.detalle_destino:
+
+                            messages.error(
+                                request,
+                                "No se puede aprobar la permuta porque no tiene una guardia de destino."
+                            )
+                            return redirect('gestion_permutas')
+
+                        # Intercambiar los estudiantes
+                        estudiante_temporal = cambio.detalle_origen.estudiante
+
+                        cambio.detalle_origen.estudiante = (
+                            cambio.detalle_destino.estudiante
+                        )
+
+                        cambio.detalle_destino.estudiante = (
+                            estudiante_temporal
+                        )
+
+                        cambio.detalle_origen.save()
+                        cambio.detalle_destino.save()
+
+                    elif cambio.tipo == 'REEMPLAZO':
+
+                        if not cambio.estudiante_destino:
+
+                            messages.error(
+                                request,
+                                "No se puede aprobar el reemplazo porque no tiene un estudiante asignado."
+                            )
+                            return redirect('gestion_permutas')
+
+                        # Asignar al estudiante reemplazante
+                        cambio.detalle_origen.estudiante = (
+                            cambio.estudiante_destino
+                        )
+
+                        cambio.detalle_origen.save()
+
+                    cambio.estado = 'ACEPTADO'
+
+                    messages.success(
+                        request,
+                        "La solicitud fue aprobada correctamente."
+                    )
+
+                # ----------------------------------
+                # RECHAZAR SOLICITUD
+                # ----------------------------------
+
+                else:
+
+                    cambio.estado = 'RECHAZADO'
+
+                    messages.warning(
+                        request,
+                        "La solicitud fue rechazada."
+                    )
+
+                # ----------------------------------
+                # GUARDAR RESOLUCIÓN
+                # ----------------------------------
+
                 cambio.oficial_id = request.user
                 cambio.fecha_resolucion = timezone.now()
                 cambio.observacion = observacion
+
                 cambio.save()
 
-                # Ejecutar el intercambio real en los detalles de guardia
-                det_origen = cambio.detalle_origen
-                est_origen_original = det_origen.estudiante
+            except Cambio.DoesNotExist:
 
-                if cambio.tipo == 'PERMUTA' and cambio.detalle_destino and cambio.estudiante_destino:
-                    # Intercambio cruzado entre dos guardias
-                    det_destino = cambio.detalle_destino
-                    est_destino_original = det_destino.estudiante
-
-                    det_origen.estudiante = est_destino_original
-                    det_origen.save()
-
-                    det_destino.estudiante = est_origen_original
-                    det_destino.save()
-                elif cambio.estudiante_destino:
-                    # Reemplazo simple por fuerza mayor
-                    det_origen.estudiante = cambio.estudiante_destino
-                    det_origen.save()
-
-                messages.success(request, "Permuta aprobada y aplicada con éxito al rol de guardia.")
-
-            elif accion == 'rechazar':
-                cambio.estado = 'RECHAZADO'
-                cambio.oficial_id = request.user
-                cambio.fecha_resolucion = timezone.now()
-                cambio.observacion = observacion
-                cambio.save()
-                messages.warning(request, "La solicitud de permuta ha sido rechazada.")
+                messages.error(
+                    request,
+                    "No se encontró la solicitud seleccionada."
+                )
 
             return redirect('gestion_permutas')
 
-    # Datos para renderizar la interfaz
-    cambios = Cambio.objects.select_related(
-        'detalle_origen__guardia', 'detalle_origen__estudiante', 
-        'estudiante_origen', 'estudiante_destino', 'oficial_id'
-    ).order_by('-fecha_solicitud')
+    # ==========================================
+    # LISTADO DE ESTUDIANTES ACTIVOS
+    # ==========================================
 
-    estudiantes = Estudiante.objects.filter(activo=True).order_by('apellidos')
-    detalles_guardia = DetalleGuardia.objects.select_related('guardia', 'estudiante').filter(
-        guardia__fecha__gte=timezone.now().date()
-    ).order_by('guardia__fecha')
+    estudiantes = Estudiante.objects.filter(
+        activo=True
+    ).order_by(
+        'anio',
+        'apellidos',
+        'nombres'
+    )
 
-    return render(request, 'guardias/permutas.html', {
-        'cambios': cambios,
+    if not es_admin and estudiante_actual:
+
+        estudiantes = estudiantes.exclude(
+            id=estudiante_actual.id
+        )
+
+    # ==========================================
+    # GUARDIAS DEL ESTUDIANTE
+    # ==========================================
+
+    detalles_guardia = DetalleGuardia.objects.select_related(
+        'guardia',
+        'estudiante',
+        'puesto'
+    ).filter(
+        guardia__fecha__gte=hoy
+    ).order_by(
+        'guardia__fecha'
+    )
+
+    if not es_admin:
+
+        detalles_guardia = detalles_guardia.filter(
+            estudiante=estudiante_actual
+        )
+
+    # ==========================================
+    # GUARDIAS DISPONIBLES PARA PERMUTAR
+    # ==========================================
+
+    detalles_destino = DetalleGuardia.objects.select_related(
+        'guardia',
+        'estudiante',
+        'puesto'
+    ).filter(
+        guardia__fecha__gte=hoy
+    ).order_by(
+        'guardia__fecha'
+    )
+
+    if not es_admin:
+
+        detalles_destino = detalles_destino.exclude(
+            estudiante=estudiante_actual
+        )
+
+    # ==========================================
+    # HISTORIAL DE SOLICITUDES
+    # ==========================================
+
+    if es_admin:
+
+        # Administrador: puede visualizar todas las solicitudes.
+        cambios = Cambio.objects.select_related(
+            'estudiante_origen',
+            'estudiante_destino',
+            'detalle_origen',
+            'detalle_destino'
+        ).order_by(
+            '-fecha_solicitud'
+        )
+
+    else:
+
+        # Estudiante: solamente visualiza las solicitudes
+        # que él mismo realizó.
+        cambios = Cambio.objects.filter(
+            estudiante_origen=estudiante_actual
+        ).select_related(
+            'estudiante_origen',
+            'estudiante_destino',
+            'detalle_origen',
+            'detalle_destino'
+        ).order_by(
+            '-fecha_solicitud'
+        )
+
+    # ==========================================
+    # ENVIAR INFORMACIÓN A LA PLANTILLA
+    # ==========================================
+
+    contexto = {
+        'es_admin': es_admin,
+        'estudiante_actual': estudiante_actual,
         'estudiantes': estudiantes,
-        'detalles_guardia': detalles_guardia
-    })
+        'detalles_guardia': detalles_guardia,
+        'detalles_destino': detalles_destino,
+        'cambios': cambios,
+    }
+
+    return render(
+        request,
+        'guardias/permutas.html',
+        contexto
+    )

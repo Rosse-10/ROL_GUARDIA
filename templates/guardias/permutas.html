@@ -1,7 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Permutas y Reemplazos - EMI Trópico</title>
+
     <style>
         body {
             font-family: 'Segoe UI', sans-serif;
@@ -10,8 +13,12 @@
             margin: 0;
             padding: 20px;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
         .header {
             text-align: center;
             padding: 20px 0;
@@ -19,9 +26,19 @@
             margin-bottom: 25px;
             position: relative;
         }
-        .header h1 { margin: 0; font-size: 2.2rem; letter-spacing: 1px; }
-        .header p { margin: 5px 0 0 0; color: #ffc107; font-size: 1.1rem; }
-        
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.2rem;
+            letter-spacing: 1px;
+        }
+
+        .header p {
+            margin: 5px 0 0 0;
+            color: #ffc107;
+            font-size: 1.1rem;
+        }
+
         .back-btn {
             position: absolute;
             left: 0;
@@ -34,7 +51,10 @@
             font-weight: bold;
             font-size: 0.9rem;
         }
-        .back-btn:hover { background: #5a6268; }
+
+        .back-btn:hover {
+            background: #5a6268;
+        }
 
         .card {
             background: rgba(255, 255, 255, 0.08);
@@ -44,9 +64,16 @@
             border: 1px solid rgba(255,193,7,0.3);
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        
-        .form-label { font-weight: bold; color: #ffc107; display: block; margin-bottom: 5px; }
-        .form-control, .form-select {
+
+        .form-label {
+            font-weight: bold;
+            color: #ffc107;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .form-control,
+        .form-select {
             width: 100%;
             padding: 10px;
             border-radius: 5px;
@@ -57,8 +84,17 @@
             margin-bottom: 15px;
             color-scheme: dark;
         }
-        .row { display: flex; gap: 15px; flex-wrap: wrap; }
-        .col { flex: 1; min-width: 220px; }
+
+        .row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .col {
+            flex: 1;
+            min-width: 220px;
+        }
 
         .btn-submit {
             background: #6f42c1;
@@ -71,167 +107,722 @@
             cursor: pointer;
             transition: background 0.3s;
         }
-        .btn-submit:hover { background: #5a32a3; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        th { color: #ffc107; background: rgba(0,0,0,0.4); font-size: 0.9rem; text-transform: uppercase; }
-        tr:hover { background: rgba(255,255,255,0.05); }
-        
-        .badge { padding: 5px 10px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
-        .badge-pendiente { background: #ffc107; color: #112233; }
-        .badge-aceptado { background: #28a745; color: white; }
-        .badge-rechazado { background: #dc3545; color: white; }
+        .btn-submit:hover {
+            background: #5a32a3;
+        }
 
-        .alert { padding: 12px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
-        .alert-success { background: rgba(40, 167, 69, 0.3); border: 1px solid #28a745; color: #28a745; }
-        .alert-danger { background: rgba(220, 53, 69, 0.3); border: 1px solid #dc3545; color: #dc3545; }
-        .alert-warning { background: rgba(255, 193, 7, 0.3); border: 1px solid #ffc107; color: #ffc107; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
 
-        .btn-aprobar { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .btn-rechazar { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        th {
+            color: #ffc107;
+            background: rgba(0,0,0,0.4);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .badge {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .badge-pendiente {
+            background: #ffc107;
+            color: #112233;
+        }
+
+        .badge-aceptado {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge-rechazado {
+            background: #dc3545;
+            color: white;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .alert-success {
+            background: rgba(40, 167, 69, 0.3);
+            border: 1px solid #28a745;
+            color: #ffffff;
+        }
+
+        .alert-danger {
+            background: rgba(220, 53, 69, 0.3);
+            border: 1px solid #dc3545;
+            color: #ffffff;
+        }
+
+        .alert-warning {
+            background: rgba(255, 193, 7, 0.3);
+            border: 1px solid #ffc107;
+            color: #ffffff;
+        }
+
+        .btn-aprobar {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-rechazar {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .info-estudiante {
+            background: rgba(255,193,7,0.12);
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .texto-ayuda {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-top: -8px;
+            margin-bottom: 15px;
+        }
+
+        @media(max-width: 700px) {
+            .back-btn {
+                position: static;
+                display: inline-block;
+                margin-bottom: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .card {
+                padding: 15px;
+            }
+        }
     </style>
 </head>
+
 <body>
 
 <div class="container">
+
+    <!-- ENCABEZADO DEL SISTEMA -->
     <div class="header">
-        <a href="{% url 'home' %}" class="back-btn">⬅️ Volver al Menú</a>
+
+        <a href="{% url 'home' %}" class="back-btn">
+            ⬅️ Volver al Menú
+        </a>
+
         <h1>SISTEMA DE GESTIÓN DE SERVICIO DE GUARDIA</h1>
-        <p>Escuela Militar de Ingeniería - Unidad Académica del Trópico</p>
+
+        <p>
+            Escuela Militar de Ingeniería - Unidad Académica del Trópico
+        </p>
+
     </div>
 
-    <h2 style="color: #ffc107; margin-bottom: 20px;">🔄 Módulo de Cambios y Permutas de Servicio</h2>
+    <h2 style="color: #ffc107; margin-bottom: 20px;">
+        🔄 Módulo de Cambios y Permutas de Servicio
+    </h2>
 
-    <!-- Mensajes de alerta del sistema -->
+    <!-- MENSAJES DEL SISTEMA -->
     {% if messages %}
         {% for message in messages %}
-            <div class="alert {% if message.tags == 'error' %}alert-danger{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}" role="alert">
+
+            <div class="alert
+                {% if message.tags == 'error' %}
+                    alert-danger
+                {% elif message.tags == 'warning' %}
+                    alert-warning
+                {% else %}
+                    alert-success
+                {% endif %}"
+                role="alert">
+
                 {{ message }}
+
             </div>
+
         {% endfor %}
     {% endif %}
 
-    <!-- Formulario para Registrar Solicitud -->
+    <!-- INFORMACIÓN DEL ESTUDIANTE -->
+    {% if not es_admin %}
+
+        <div class="info-estudiante">
+
+            <strong>Estudiante:</strong>
+
+            {{ estudiante_actual.apellidos }},
+            {{ estudiante_actual.nombres }}
+
+            <br><br>
+
+            <span>
+                Desde este módulo puedes solicitar una permuta
+                o un reemplazo de tus guardias asignadas.
+            </span>
+
+        </div>
+
+    {% endif %}
+
+    <!-- ================================================== -->
+    <!-- FORMULARIO DE SOLICITUD -->
+    <!-- VISIBLE PARA ADMINISTRADOR Y ESTUDIANTE -->
+    <!-- ================================================== -->
+
     <div class="card">
-        <h3 style="margin-top: 0; color: #ffc107; margin-bottom: 20px;">Registrar Solicitud de Permuta o Reemplazo</h3>
+
+        <h3 style="margin-top: 0; color: #ffc107; margin-bottom: 20px;">
+            Registrar Solicitud de Permuta o Reemplazo
+        </h3>
+
         <form method="POST">
+
             {% csrf_token %}
+
             <input type="hidden" name="accion" value="crear">
-            
+
+            <!-- TIPO Y GUARDIA DE ORIGEN -->
+
             <div class="row">
+
                 <div class="col">
-                    <label class="form-label">Tipo de Solicitud</label>
-                    <select name="tipo" class="form-select" required>
-                        <option value="PERMUTA">Permuta entre Cadetes</option>
-                        <option value="REEMPLAZO">Reemplazo por Fuerza Mayor</option>
+
+                    <label class="form-label">
+                        Tipo de Solicitud
+                    </label>
+
+                    <select
+                        name="tipo"
+                        id="tipo"
+                        class="form-select"
+                        required
+                        onchange="cambiarTipo()">
+
+                        <option value="PERMUTA">
+                            Permuta entre Cadetes
+                        </option>
+
+                        <option value="REEMPLAZO">
+                            Reemplazo por Fuerza Mayor
+                        </option>
+
                     </select>
+
                 </div>
+
                 <div class="col">
-                    <label class="form-label">Guardia y Cadete Origen (Afectado)</label>
-                    <select name="detalle_origen" class="form-select" required>
-                        <option value="">Seleccione el turno asignado...</option>
+
+                    <label class="form-label">
+
+                        {% if es_admin %}
+                            Guardia y Cadete Origen
+                        {% else %}
+                            Mi Guardia Asignada
+                        {% endif %}
+
+                    </label>
+
+                    <select
+                        name="detalle_origen"
+                        id="detalle_origen"
+                        class="form-select"
+                        required>
+
+                        <option value="">
+                            Seleccione la guardia asignada...
+                        </option>
+
                         {% for det in detalles_guardia %}
+
                             <option value="{{ det.id }}">
-                                {{ det.guardia.fecha|date:"d/m/Y" }} - [{{ det.get_puesto_display }}] : {{ det.estudiante.apellidos }}, {{ det.estudiante.nombres }}
+
+                                {{ det.guardia.fecha|date:"d/m/Y" }}
+                                -
+                                [{{ det.get_puesto_display }}]
+                                -
+                                {{ det.estudiante.apellidos }},
+                                {{ det.estudiante.nombres }}
+
                             </option>
+
+                        {% empty %}
+
+                            <option value="" disabled>
+                                No existen guardias futuras disponibles.
+                            </option>
+
                         {% endfor %}
+
                     </select>
+
                 </div>
+
             </div>
+
+            <!-- ================================================== -->
+            <!-- CAMPO PARA PERMUTA -->
+            <!-- ================================================== -->
+
+            <div id="campo_permuta" class="row" style="margin-top: 15px;">
+
+                <div class="col">
+
+                    <label class="form-label">
+                        Guardia del Cadete con quien desea intercambiar
+                    </label>
+
+                    <select
+                        name="detalle_destino"
+                        id="detalle_destino"
+                        class="form-select">
+
+                        <option value="">
+                            Seleccione la segunda guardia...
+                        </option>
+
+                        {% for det in detalles_destino %}
+
+                            <option value="{{ det.id }}">
+
+                                {{ det.guardia.fecha|date:"d/m/Y" }}
+                                -
+                                [{{ det.get_puesto_display }}]
+                                -
+                                {{ det.estudiante.apellidos }},
+                                {{ det.estudiante.nombres }}
+
+                            </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                    <p class="texto-ayuda">
+                        Seleccione la guardia del otro cadete con quien
+                        desea realizar el intercambio.
+                    </p>
+
+                </div>
+
+            </div>
+
+            <!-- ================================================== -->
+            <!-- CAMPO PARA REEMPLAZO -->
+            <!-- ================================================== -->
+
+            <div id="campo_reemplazo" class="row"
+                 style="margin-top: 15px; display: none;">
+
+                <div class="col">
+
+                    <label class="form-label">
+                        Cadete que realizará el reemplazo
+                    </label>
+
+                    <select
+                        name="estudiante_destino"
+                        id="estudiante_destino"
+                        class="form-select">
+
+                        <option value="">
+                            Seleccione el cadete...
+                        </option>
+
+                        {% for est in estudiantes %}
+
+                            <option value="{{ est.id }}">
+
+                                {{ est.apellidos }},
+                                {{ est.nombres }}
+                                ({{ est.anio }}° Año)
+
+                            </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                    <p class="texto-ayuda">
+                        Seleccione al estudiante que podría cubrir
+                        su servicio de guardia.
+                    </p>
+
+                </div>
+
+            </div>
+
+            <!-- MOTIVO DE LA SOLICITUD -->
 
             <div class="row" style="margin-top: 15px;">
+
                 <div class="col">
-                    <label class="form-label">Cadete Reemplazo / Destino (Opcional)</label>
-                    <select name="estudiante_destino" class="form-select">
-                        <option value="">Seleccione cadete que asume el servicio...</option>
-                        {% for est in estudiantes %}
-                            <option value="{{ est.id }}">{{ est.apellidos }}, {{ est.nombres }} ({{ est.anio }}° Año)</option>
-                        {% endfor %}
-                    </select>
+
+                    <label class="form-label">
+                        Motivo de la Solicitud
+                    </label>
+
+                    <input
+                        type="text"
+                        name="motivo"
+                        class="form-control"
+                        placeholder="Ej. Comisión académica, salud, cruce de turnos..."
+                        maxlength="250"
+                        required>
+
                 </div>
-                <div class="col">
-                    <label class="form-label">Motivo de la Solicitud</label>
-                    <input type="text" name="motivo" class="form-control" placeholder="Ej. Comisión académica, salud, cruce de turnos..." required>
-                </div>
+
             </div>
 
-            <button type="submit" class="btn-submit" style="margin-top: 15px;">➕ Registrar Solicitud</button>
+            <!-- BOTÓN REGISTRAR -->
+
+            <button
+                type="submit"
+                class="btn-submit"
+                style="margin-top: 15px;">
+
+                ➕ Registrar Solicitud
+
+            </button>
+
         </form>
+
     </div>
 
-    <!-- Historial y Panel de Autorización para el Administrador -->
+    <!-- ================================================== -->
+    <!-- HISTORIAL DE SOLICITUDES -->
+    <!-- ADMINISTRADOR: TODAS LAS SOLICITUDES -->
+    <!-- ESTUDIANTE: SOLAMENTE SUS SOLICITUDES -->
+    <!-- ================================================== -->
+
     <div class="card">
-        <h3 style="margin-top: 0; margin-bottom: 15px;">Historial de Solicitudes y Autorizaciones</h3>
+
+        <h3 style="margin-top: 0; margin-bottom: 15px; color: #ffc107;">
+
+            Historial de Solicitudes y Autorizaciones
+
+        </h3>
+
         <div style="overflow-x: auto;">
+
             <table>
+
                 <thead>
+
                     <tr>
+
                         <th>Fecha Guardia</th>
                         <th>Tipo</th>
                         <th>Solicitante (Original)</th>
-                        <th>Reemplazo Asignado</th>
+                        <th>Destino</th>
                         <th>Motivo</th>
                         <th>Estado</th>
-                        {% if user.is_superuser %}<th>Acciones Oficial Admin</th>{% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for c in cambios %}
-                    <tr>
-                        <td><strong>{{ c.detalle_origen.guardia.fecha|date:"d/m/Y" }}</strong></td>
-                        <td><span style="font-size: 0.9rem; font-weight: bold;">{{ c.get_tipo_display }}</span></td>
-                        <td>{{ c.estudiante_origen.apellidos }}, {{ c.estudiante_origen.nombres }}</td>
-                        <td>
-                            {% if c.estudiante_destino %}
-                                {{ c.estudiante_destino.apellidos }}, {{ c.estudiante_destino.nombres }}
-                            {% else %}
-                                <span style="opacity: 0.5;">Sin asignar</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ c.motivo }}</td>
-                        <td>
-                            {% if c.estado == 'PENDIENTE' %}
-                                <span class="badge badge-pendiente">PENDIENTE</span>
-                            {% elif c.estado == 'ACEPTADO' %}
-                                <span class="badge badge-aceptado">APROBADO</span>
-                            {% else %}
-                                <span class="badge badge-rechazado">RECHAZADO</span>
-                            {% endif %}
-                        </td>
-                        {% if user.is_superuser %}
-                        <td>
-                            {% if c.estado == 'PENDIENTE' %}
-                            <form method="POST" style="display: flex; gap: 8px;">
-                                {% csrf_token %}
-                                <input type="hidden" name="accion" value="aprobar">
-                                <input type="hidden" name="cambio_id" value="{{ c.id }}">
-                                <button type="submit" class="btn-aprobar">✔ Aprobar</button>
-                            </form>
-                            <form method="POST" style="display: flex; gap: 8px; margin-top: 5px;">
-                                {% csrf_token %}
-                                <input type="hidden" name="accion" value="rechazar">
-                                <input type="hidden" name="cambio_id" value="{{ c.id }}">
-                                <button type="submit" class="btn-rechazar">✖ Rechazar</button>
-                            </form>
-                            {% else %}
-                                <small style="opacity: 0.7;">Resuelto por: {{ c.oficial_id.username|default:"Admin" }}</small>
-                            {% endif %}
-                        </td>
+
+                        {% if es_admin %}
+                            <th>Acciones Oficial Admin</th>
+                        {% else %}
+                            <th>Revisión</th>
                         {% endif %}
+
                     </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for c in cambios %}
+
+                        <tr>
+
+                            <!-- FECHA -->
+
+                            <td>
+
+                                <strong>
+                                    {{ c.detalle_origen.guardia.fecha|date:"d/m/Y" }}
+                                </strong>
+
+                            </td>
+
+                            <!-- TIPO -->
+
+                            <td>
+
+                                <span style="font-size: 0.9rem; font-weight: bold;">
+                                    {{ c.get_tipo_display }}
+                                </span>
+
+                            </td>
+
+                            <!-- SOLICITANTE -->
+
+                            <td>
+
+                                {{ c.estudiante_origen.apellidos }},
+                                {{ c.estudiante_origen.nombres }}
+
+                            </td>
+
+                            <!-- DESTINO -->
+
+                            <td>
+
+                                {% if c.tipo == 'PERMUTA' and c.detalle_destino %}
+
+                                    {{ c.detalle_destino.estudiante.apellidos }},
+                                    {{ c.detalle_destino.estudiante.nombres }}
+
+                                {% elif c.estudiante_destino %}
+
+                                    {{ c.estudiante_destino.apellidos }},
+                                    {{ c.estudiante_destino.nombres }}
+
+                                {% else %}
+
+                                    <span style="opacity: 0.5;">
+                                        Sin asignar
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+                            <!-- MOTIVO -->
+
+                            <td>
+                                {{ c.motivo }}
+                            </td>
+
+                            <!-- ESTADO -->
+
+                            <td>
+
+                                {% if c.estado == 'PENDIENTE' %}
+
+                                    <span class="badge badge-pendiente">
+                                        PENDIENTE
+                                    </span>
+
+                                {% elif c.estado == 'ACEPTADO' %}
+
+                                    <span class="badge badge-aceptado">
+                                        APROBADO
+                                    </span>
+
+                                {% else %}
+
+                                    <span class="badge badge-rechazado">
+                                        RECHAZADO
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+                            <!-- ACCIONES DEL ADMINISTRADOR -->
+
+                            {% if es_admin %}
+
+                                <td>
+
+                                    {% if c.estado == 'PENDIENTE' %}
+
+                                        <!-- APROBAR SOLICITUD -->
+
+                                        <form method="POST">
+
+                                            {% csrf_token %}
+
+                                            <input
+                                                type="hidden"
+                                                name="accion"
+                                                value="aprobar">
+
+                                            <input
+                                                type="hidden"
+                                                name="cambio_id"
+                                                value="{{ c.id }}">
+
+                                            <button
+                                                type="submit"
+                                                class="btn-aprobar">
+
+                                                ✔ Aprobar
+
+                                            </button>
+
+                                        </form>
+
+                                        <!-- RECHAZAR SOLICITUD -->
+
+                                        <form method="POST" style="margin-top: 5px;">
+
+                                            {% csrf_token %}
+
+                                            <input
+                                                type="hidden"
+                                                name="accion"
+                                                value="rechazar">
+
+                                            <input
+                                                type="hidden"
+                                                name="cambio_id"
+                                                value="{{ c.id }}">
+
+                                            <button
+                                                type="submit"
+                                                class="btn-rechazar">
+
+                                                ✖ Rechazar
+
+                                            </button>
+
+                                        </form>
+
+                                    {% else %}
+
+                                        <small style="opacity: 0.7;">
+
+                                            Resuelto por:
+                                            {{ c.oficial_id.username|default:"Admin" }}
+
+                                        </small>
+
+                                    {% endif %}
+
+                                </td>
+
+                            {% else %}
+
+                                <!-- EL ESTUDIANTE SOLO CONSULTA SU SOLICITUD -->
+
+                                <td>
+
+                                    <small style="opacity: 0.8;">
+
+                                        Solicitud enviada.
+                                        Puedes consultar aquí su estado.
+
+                                    </small>
+
+                                </td>
+
+                            {% endif %}
+
+                        </tr>
+
                     {% empty %}
-                    <tr>
-                        <td colspan="{% if user.is_superuser %}7{% else %}6{% endif %}" style="text-align: center; opacity: 0.6; padding: 25px;">
-                            No hay solicitudes de permutas registradas en el sistema.
-                        </td>
-                    </tr>
+
+                        <tr>
+
+                            <td
+                                colspan="7"
+                                style="text-align: center; opacity: 0.6; padding: 25px;">
+
+                                No hay solicitudes de permutas registradas en el sistema.
+
+                            </td>
+
+                        </tr>
+
                     {% endfor %}
+
                 </tbody>
+
             </table>
+
         </div>
+
     </div>
+
 </div>
+
+<!-- ====================================================== -->
+<!-- JAVASCRIPT: MOSTRAR CAMPOS SEGÚN EL TIPO DE SOLICITUD -->
+<!-- ====================================================== -->
+
+<script>
+
+    function cambiarTipo() {
+
+        const tipo = document.getElementById('tipo').value;
+
+        const campoPermuta = document.getElementById('campo_permuta');
+
+        const campoReemplazo = document.getElementById('campo_reemplazo');
+
+        const detalleDestino = document.getElementById('detalle_destino');
+
+        const estudianteDestino = document.getElementById('estudiante_destino');
+
+        if (tipo === 'PERMUTA') {
+
+            campoPermuta.style.display = 'flex';
+
+            campoReemplazo.style.display = 'none';
+
+            detalleDestino.required = true;
+
+            estudianteDestino.required = false;
+
+        } else {
+
+            campoPermuta.style.display = 'none';
+
+            campoReemplazo.style.display = 'flex';
+
+            detalleDestino.required = false;
+
+            estudianteDestino.required = false;
+
+        }
+
+    }
+
+    // Inicializar los campos al cargar la página
+
+    document.addEventListener('DOMContentLoaded', function() {
+
+        cambiarTipo();
+
+    });
+
+</script>
 
 </body>
 </html>
