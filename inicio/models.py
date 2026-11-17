@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import FileExtensionValidator
+from django.utils import timezone
 
 
 class Gestion(models.Model):
@@ -40,6 +42,9 @@ class Estudiante(models.Model):
     carrera = models.ForeignKey(Carrera, on_delete=models.PROTECT)
     activo = models.BooleanField(default=True)
     habilitado_desde = models.DateField(null=True, blank=True)  # Clave para el ingreso de 1er año
+    usuario = models.OneToOneField(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='estudiante'
+    )  # Cuenta con la que el cadete ingresa a su panel
 
     def __str__(self):
         return f"{self.apellidos} {self.nombres} ({self.get_anio_display()})"
@@ -73,6 +78,11 @@ class Estudiante(models.Model):
 
         user.set_password(password_estudiante)
         user.save()
+
+        # Vincular la cuenta con el estudiante (sin volver a disparar este save)
+        if self.usuario_id != user.id:
+            Estudiante.objects.filter(pk=self.pk).update(usuario=user)
+            self.usuario = user
 
 
 class Matricula(models.Model):
@@ -197,11 +207,16 @@ class DetalleGuardia(models.Model):
         ('FALTA', 'Falta'),
         ('JUSTIFICADA', 'Justificada'),
         ('REEMPLAZADO', 'Reemplazado'),
+        ('LICENCIA', 'Con Licencia'),
+        ('PERMISO', 'Con Permiso'),
     ]
     guardia = models.ForeignKey(GuardiaDia, on_delete=models.CASCADE, related_name='detalles')
     puesto = models.ForeignKey(Puesto, on_delete=models.PROTECT)
     estudiante = models.ForeignKey(Estudiante, on_delete=models.PROTECT, related_name='asignaciones_guardia')
     asistencia = models.CharField(max_length=20, choices=OPCIONES_ASISTENCIA, default='PENDIENTE')
+    ausencia = models.ForeignKey(
+        'AusenciaLicencia', on_delete=models.SET_NULL, null=True, blank=True, related_name='detalles_afectados'
+    )  # Licencia/permiso aprobado que cubre esta guardia
     observacion = models.TextField(blank=True, null=True)
     registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     registrado_en = models.DateTimeField(auto_now=True)
@@ -216,23 +231,92 @@ class DetalleGuardia(models.Model):
         return f"{self.guardia.fecha} - {self.puesto.nombre}: {self.estudiante}"
 
 
+def ruta_justificativo(instance, filename):
+    """Guarda cada justificativo en una carpeta por estudiante"""
+    return f"justificativos/estudiante_{instance.estudiante_id}/{filename}"
+
+
+EXTENSIONES_JUSTIFICATIVO = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'pdf']
+TAMANO_MAX_JUSTIFICATIVO_MB = 5
+
+
 class AusenciaLicencia(models.Model):
-    """Control de bajas médicas, permisos, licencias o comisiones de cadetes"""
-    OPCIONES_TIPO = [
-        ('LICENCIA', 'Licencia'),
-        ('SALUD', 'Baja Médica / Salud'),
+    """Solicitudes y registros de licencias, ausencias y permisos de cadetes"""
+    # Licencias: el cadete queda "Con Licencia" en sus guardias
+    TIPOS_LICENCIA = [
+        ('SALUD', 'Licencia por Salud / Baja Médica'),
+        ('CUMPLEANOS', 'Licencia por Cumpleaños'),
+        ('FAMILIAR', 'Licencia por Motivos Familiares'),
+        ('LICENCIA', 'Licencia por Otros Motivos'),
+    ]
+    # Ausencias y permisos: el cadete queda "Con Permiso" en sus guardias
+    TIPOS_PERMISO = [
+        ('AUSENCIA', 'Ausencia por Motivo Personal'),
+        ('PERMISO_EMI', 'Permiso Institucional de la EMI'),
         ('PERMISO', 'Permiso Especial'),
         ('COMISION', 'Comisión Oficial'),
+        ('OTRO', 'Otro Motivo'),
     ]
+    OPCIONES_TIPO = [
+        ('Licencias', TIPOS_LICENCIA),
+        ('Ausencias y Permisos', TIPOS_PERMISO),
+    ]
+    OPCIONES_ESTADO = [
+        ('PENDIENTE', 'Pendiente'),
+        ('APROBADA', 'Aprobada'),
+        ('RECHAZADA', 'Rechazada'),
+    ]
+
     estudiante = models.ForeignKey(Estudiante, on_delete=models.CASCADE, related_name='ausencias')
     tipo = models.CharField(max_length=20, choices=OPCIONES_TIPO)
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
     motivo = models.TextField()
-    registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    justificativo = models.FileField(
+        upload_to=ruta_justificativo, null=True, blank=True,
+        validators=[FileExtensionValidator(EXTENSIONES_JUSTIFICATIVO)],
+    )
+    estado = models.CharField(max_length=20, choices=OPCIONES_ESTADO, default='PENDIENTE')
+    registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)  # Quién la creó (cadete u oficial)
+    fecha_solicitud = models.DateTimeField(auto_now_add=True, null=True)
+    resuelto_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ausencias_resueltas'
+    )
+    fecha_resolucion = models.DateTimeField(null=True, blank=True)
+    observacion_oficial = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.estudiante} ({self.tipo}: {self.fecha_inicio} al {self.fecha_fin})"
+        return f"{self.estudiante} ({self.tipo}: {self.fecha_inicio} al {self.fecha_fin}) [{self.estado}]"
+
+    @property
+    def es_licencia(self):
+        return self.tipo in dict(self.TIPOS_LICENCIA)
+
+    @property
+    def estado_asistencia(self):
+        """Valor que toma DetalleGuardia.asistencia cuando esta solicitud se aprueba"""
+        return 'LICENCIA' if self.es_licencia else 'PERMISO'
+
+    @property
+    def justificativo_es_imagen(self):
+        nombre = self.justificativo.name.lower() if self.justificativo else ''
+        return nombre.endswith(('.jpg', '.jpeg', '.png', '.webp'))
+
+    def aplicar_a_guardias(self, usuario):
+        """Marca como Con Licencia / Con Permiso las guardias del cadete dentro del rango.
+        Devuelve la cantidad de guardias afectadas."""
+        detalles = DetalleGuardia.objects.filter(
+            estudiante=self.estudiante,
+            guardia__fecha__gte=self.fecha_inicio,
+            guardia__fecha__lte=self.fecha_fin,
+        )
+        return detalles.update(
+            asistencia=self.estado_asistencia,
+            ausencia=self,
+            observacion=f"{self.get_tipo_display()} aprobada (solicitud #{self.id})",
+            registrado_por=usuario,
+            registrado_en=timezone.now(),
+        )
 
 
 class Cambio(models.Model):

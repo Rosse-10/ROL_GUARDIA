@@ -1,8 +1,12 @@
+import os
+from functools import wraps
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db import models  # Importante para models.Q
+from django.db import models, transaction  # Importante para models.Q
+from django.http import FileResponse, Http404
 from .models import Estudiante, Carrera, Gestion, EsquemaGuardia, EsquemaVigencia, Puesto, GuardiaDia, DetalleGuardia, AusenciaLicencia,Cambio
-from .forms import EstudianteForm, GestionForm, EsquemaGuardiaForm
+from .forms import EstudianteForm, GestionForm, EsquemaGuardiaForm, SolicitudAusenciaForm, AusenciaOficialForm
 from datetime import datetime, timedelta
 from django.contrib import messages
 from django.utils import timezone
@@ -42,8 +46,16 @@ def home(request):
     inicio_mes = hoy.replace(day=1)
     guardias_mes = GuardiaDia.objects.filter(fecha__gte=inicio_mes).order_by('fecha')
 
+    # 4. Resumen de solicitudes para el botón del panel (oficial o cadete)
+    if request.user.is_superuser:
+        solicitudes_pendientes = AusenciaLicencia.objects.filter(estado='PENDIENTE').count()
+    else:
+        estudiante = estudiante_de_usuario(request.user)
+        solicitudes_pendientes = estudiante.ausencias.filter(estado='PENDIENTE').count() if estudiante else 0
+
     contexto = {
         'hoy': hoy,
+        'solicitudes_pendientes': solicitudes_pendientes,
         'gestion_activa': gestion_activa,
         'esquema_vigente': esquema_vigente,
         'guardia_hoy': guardia_hoy,
@@ -157,6 +169,7 @@ def planificacion_guardias(request):
 
                         # 1. Obtener IDs de estudiantes con ausencia/licencia activa en la fecha evaluada
                         ausentes_hoy = AusenciaLicencia.objects.filter(
+                            estado='APROBADA',
                             fecha_inicio__lte=fecha_evaluar,
                             fecha_fin__gte=fecha_evaluar
                         ).values_list('estudiante_id', flat=True)
@@ -225,6 +238,7 @@ def generar_rango_guardias(request):
                             
                             # 1. Obtener IDs de estudiantes con ausencia/licencia activa en la fecha evaluada (f_actual)
                             ausentes_hoy = AusenciaLicencia.objects.filter(
+                                estado='APROBADA',
                                 fecha_inicio__lte=f_actual,
                                 fecha_fin__gte=f_actual
                             ).values_list('estudiante_id', flat=True)
@@ -322,53 +336,146 @@ def eliminar_esquema(request, id):
     return redirect('lista_esquemas')
 
 
-@login_required
-def gestion_ausencias(request):
-    """Panel exclusivo del Oficial Administrador para registrar y consultar ausencias y licencias"""
-    if request.method == 'POST':
-        estudiante_id = request.POST.get('estudiante')
-        tipo = request.POST.get('tipo')
-        fecha_inicio = request.POST.get('fecha_inicio')
-        fecha_fin = request.POST.get('fecha_fin')
-        motivo = request.POST.get('motivo')
+# ==========================================================
+# AUSENCIAS, LICENCIAS Y PERMISOS
+# ==========================================================
 
-        # Validación de negocio: la fecha fin no puede ser anterior a la de inicio
-        if fecha_inicio > fecha_fin:
-            messages.error(request, "Error: La fecha de fin no puede ser anterior a la fecha de inicio.")
-            return redirect('gestion_ausencias')
+def estudiante_de_usuario(user):
+    """Devuelve el Estudiante vinculado a la cuenta que inició sesión (o None)"""
+    estudiante = getattr(user, 'estudiante', None)
+    if estudiante is None and user.is_authenticated:
+        # Respaldo para cuentas creadas antes del vínculo usuario <-> estudiante
+        estudiante = Estudiante.objects.filter(ci=user.username, usuario__isnull=True).first()
+        if estudiante:
+            estudiante.usuario = user
+            Estudiante.objects.filter(pk=estudiante.pk).update(usuario=user)
+    return estudiante
 
-        # Registrar la ausencia en la base de datos
-        AusenciaLicencia.objects.create(
-            estudiante_id=estudiante_id,
-            tipo=tipo,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            motivo=motivo,
-            registrado_por=request.user
+
+def solo_oficial(vista):
+    """Restringe una vista al Oficial Administrador (superusuario)"""
+    @wraps(vista)
+    @login_required
+    def envoltura(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            messages.error(request, "No tiene permisos para acceder a ese módulo.")
+            return redirect('home')
+        return vista(request, *args, **kwargs)
+    return envoltura
+
+
+def _avisar_guardias_afectadas(request, ausencia, cantidad):
+    if cantidad:
+        messages.warning(
+            request,
+            f"{cantidad} guardia(s) de {ausencia.estudiante.apellidos} quedaron marcadas como "
+            f"'{dict(DetalleGuardia.OPCIONES_ASISTENCIA)[ausencia.estado_asistencia]}'. "
+            "Recuerde asignar un reemplazo para esos puestos."
         )
 
-        # Validación cruzada de impacto: verificar si el cadete ya tenía guardias en este rango
-        guardias_afectadas = DetalleGuardia.objects.filter(
-            estudiante_id=estudiante_id,
-            guardia__fecha__gte=fecha_inicio,
-            guardia__fecha__lte=fecha_fin
-        ).select_related('guardia')
 
-        if guardias_afectadas.exists():
-            fechas_str = ", ".join([d.guardia.fecha.strftime('%d/%m/%Y') for d in guardias_afectadas])
-            messages.warning(request, f"Ausencia registrada, pero ¡Atención! El cadete ya tenía guardias asignadas en las fechas: {fechas_str}.")
-        else:
-            messages.success(request, "¡Ausencia o licencia registrada correctamente!")
+@solo_oficial
+def gestion_ausencias(request):
+    """Panel del Oficial Administrador: registrar ausencias y aprobar/rechazar solicitudes de los cadetes"""
+    form = AusenciaOficialForm()
 
-        return redirect('gestion_ausencias')
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
 
-    # Listar ausencias ordenadas de la más reciente a la más antigua
-    ausencias = AusenciaLicencia.objects.select_related('estudiante', 'registrado_por').order_by('-fecha_inicio')
-    estudiantes = Estudiante.objects.filter(activo=True).order_by('apellidos', 'nombres')
+        # Acción 1: el oficial registra directamente una ausencia (queda aprobada)
+        if accion == 'registrar':
+            form = AusenciaOficialForm(request.POST, request.FILES)
+            if form.is_valid():
+                with transaction.atomic():
+                    ausencia = form.save(commit=False)
+                    ausencia.estado = 'APROBADA'
+                    ausencia.registrado_por = request.user
+                    ausencia.resuelto_por = request.user
+                    ausencia.fecha_resolucion = timezone.now()
+                    ausencia.save()
+                    afectadas = ausencia.aplicar_a_guardias(request.user)
+                messages.success(request, "¡Ausencia o licencia registrada y aprobada correctamente!")
+                _avisar_guardias_afectadas(request, ausencia, afectadas)
+                return redirect('gestion_ausencias')
+            messages.error(request, "Revise los datos del formulario de registro.")
+
+        # Acción 2: aprobar o rechazar una solicitud enviada por un cadete
+        elif accion in ('aprobar', 'rechazar'):
+            solicitud = get_object_or_404(AusenciaLicencia, id=request.POST.get('solicitud_id'))
+            observacion = request.POST.get('observacion', '').strip()
+
+            if solicitud.estado != 'PENDIENTE':
+                messages.error(request, "Esa solicitud ya fue resuelta anteriormente.")
+                return redirect('gestion_ausencias')
+            if accion == 'rechazar' and not observacion:
+                messages.error(request, "Para rechazar una solicitud debe indicar el motivo del rechazo.")
+                return redirect('gestion_ausencias')
+
+            with transaction.atomic():
+                solicitud.estado = 'APROBADA' if accion == 'aprobar' else 'RECHAZADA'
+                solicitud.resuelto_por = request.user
+                solicitud.fecha_resolucion = timezone.now()
+                solicitud.observacion_oficial = observacion
+                solicitud.save()
+                afectadas = solicitud.aplicar_a_guardias(request.user) if accion == 'aprobar' else 0
+
+            nombre = f"{solicitud.estudiante.apellidos}, {solicitud.estudiante.nombres}"
+            if accion == 'aprobar':
+                messages.success(request, f"Solicitud de {nombre} APROBADA.")
+                _avisar_guardias_afectadas(request, solicitud, afectadas)
+            else:
+                messages.warning(request, f"Solicitud de {nombre} RECHAZADA.")
+            return redirect('gestion_ausencias')
+
+    base = AusenciaLicencia.objects.select_related(
+        'estudiante', 'estudiante__carrera', 'registrado_por', 'resuelto_por'
+    )
+    pendientes = base.filter(estado='PENDIENTE').order_by('fecha_solicitud', 'id')
+    historial = base.exclude(estado='PENDIENTE').order_by('-fecha_resolucion', '-fecha_inicio')
 
     return render(request, 'guardias/ausencias.html', {
-        'ausencias': ausencias,
-        'estudiantes': estudiantes
+        'form': form,
+        'pendientes': pendientes,
+        'historial': historial,
+    })
+
+
+@login_required
+def mis_solicitudes_ausencia(request):
+    """Panel del cadete: enviar solicitudes de licencia/ausencia y ver su estado"""
+    estudiante = estudiante_de_usuario(request.user)
+    if estudiante is None:
+        messages.error(request, "Su cuenta no está vinculada a ningún estudiante. Consulte con el oficial.")
+        return redirect('home')
+
+    if request.method == 'POST':
+        form = SolicitudAusenciaForm(request.POST, request.FILES, estudiante=estudiante)
+        if form.is_valid():
+            solicitud = form.save(commit=False)
+            solicitud.estudiante = estudiante
+            solicitud.estado = 'PENDIENTE'
+            solicitud.registrado_por = request.user
+            solicitud.save()
+            messages.success(request, "Su solicitud fue enviada y quedó PENDIENTE de aprobación por el oficial.")
+            return redirect('mis_solicitudes_ausencia')
+        messages.error(request, "Revise los datos del formulario.")
+    else:
+        form = SolicitudAusenciaForm(estudiante=estudiante)
+
+    solicitudes = estudiante.ausencias.select_related('resuelto_por').annotate(
+        guardias_marcadas=models.Count('detalles_afectados')
+    ).order_by('-fecha_solicitud', '-id')
+
+    # Guardias próximas del cadete, para que sepa qué fechas está justificando
+    proximas_guardias = DetalleGuardia.objects.filter(
+        estudiante=estudiante, guardia__fecha__gte=timezone.localdate()
+    ).select_related('guardia', 'puesto').order_by('guardia__fecha')[:10]
+
+    return render(request, 'guardias/mis_ausencias.html', {
+        'estudiante': estudiante,
+        'form': form,
+        'solicitudes': solicitudes,
+        'proximas_guardias': proximas_guardias,
     })
 
 # ==========================================================
@@ -376,6 +483,19 @@ def gestion_ausencias(request):
 # ADMINISTRADOR: FORMULARIO + HISTORIAL + APROBACIONES
 # ESTUDIANTE: SOLAMENTE FORMULARIO DE SOLICITUD
 # ==========================================================
+
+@login_required
+def ver_justificativo(request, id):
+    """Entrega el archivo justificativo solo al oficial o al cadete dueño de la solicitud"""
+    ausencia = get_object_or_404(AusenciaLicencia.objects.select_related('estudiante'), id=id)
+    es_dueno = ausencia.estudiante.usuario_id == request.user.id
+    if not (request.user.is_superuser or es_dueno) or not ausencia.justificativo:
+        raise Http404("Justificativo no disponible")
+    try:
+        archivo = ausencia.justificativo.open('rb')
+    except FileNotFoundError:
+        raise Http404("El archivo ya no existe en el servidor")
+    return FileResponse(archivo, filename=os.path.basename(ausencia.justificativo.name))
 
 @login_required
 def gestion_permutas(request):

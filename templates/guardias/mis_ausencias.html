@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mis Solicitudes - EMI Trópico</title>
+    {% include 'guardias/_estilos_ausencias.html' %}
+    <style>
+        .datos-cadete {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .dato {
+            background: rgba(0,0,0,0.25);
+            border-radius: 6px;
+            padding: 10px 12px;
+        }
+        .dato span { display: block; font-size: 0.75rem; color: #ffc107; text-transform: uppercase; font-weight: bold; }
+        .dato strong { font-size: 1rem; }
+        .guardia-chip {
+            display: inline-block;
+            background: rgba(255,255,255,0.12);
+            border-radius: 5px;
+            padding: 5px 10px;
+            margin: 0 6px 6px 0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <a href="{% url 'home' %}" class="back-btn">⬅️ Volver al Panel</a>
+        <h1>SISTEMA DE GESTIÓN DE SERVICIO DE GUARDIA</h1>
+        <p>Escuela Militar de Ingeniería - Unidad Académica del Trópico</p>
+    </div>
+
+    <h2 style="color: #ffc107; margin-bottom: 20px;">🩺 Solicitud de Licencia, Ausencia o Permiso</h2>
+
+    {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-danger{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}" role="alert">
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    <!-- Formulario de nueva solicitud -->
+    <div class="card">
+        <h3>📝 Nueva Solicitud</h3>
+
+        <div class="datos-cadete">
+            <div class="dato"><span>Cadete</span><strong>{{ estudiante.apellidos }}, {{ estudiante.nombres }}</strong></div>
+            <div class="dato"><span>C.I.</span><strong>{{ estudiante.ci|default:"No registrado" }}</strong></div>
+            <div class="dato"><span>Año</span><strong>{{ estudiante.get_anio_display }}</strong></div>
+            <div class="dato"><span>Carrera</span><strong>{{ estudiante.carrera }}</strong></div>
+        </div>
+
+        {% if proximas_guardias %}
+            <p style="margin: 0 0 8px 0; font-weight: bold;">📅 Sus próximas guardias asignadas:</p>
+            <div style="margin-bottom: 20px;">
+                {% for d in proximas_guardias %}
+                    <span class="guardia-chip">{{ d.guardia.fecha|date:"D d/m/Y" }} · {{ d.puesto.nombre }}</span>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            {% for error in form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+            {% include 'guardias/_campo.html' with campo=form.tipo %}
+            <div class="row">
+                <div class="col">{% include 'guardias/_campo.html' with campo=form.fecha_inicio %}</div>
+                <div class="col">{% include 'guardias/_campo.html' with campo=form.fecha_fin %}</div>
+            </div>
+            {% include 'guardias/_campo.html' with campo=form.motivo %}
+            {% include 'guardias/_campo.html' with campo=form.justificativo ayuda="Foto o documento que respalde su solicitud (ticket de hospital, certificado médico, foto del incidente, memorándum, etc.). JPG, PNG, WEBP, HEIC o PDF, máximo 5 MB." %}
+            <button type="submit" class="btn-submit">📨 Enviar Solicitud</button>
+        </form>
+    </div>
+
+    <!-- Estado de las solicitudes del cadete -->
+    <div class="card">
+        <h3 style="color: white;">📋 Mis Solicitudes</h3>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Enviada</th>
+                        <th>Tipo</th>
+                        <th>Fechas</th>
+                        <th>Motivo</th>
+                        <th>Adjunto</th>
+                        <th>Estado</th>
+                        <th>Respuesta del Oficial</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in solicitudes %}
+                    <tr>
+                        <td class="detalle-secundario">{{ s.fecha_solicitud|date:"d/m/Y H:i"|default:"—" }}</td>
+                        <td><span class="badge">{{ s.get_tipo_display }}</span></td>
+                        <td>{{ s.fecha_inicio|date:"d/m/Y" }}<br>al {{ s.fecha_fin|date:"d/m/Y" }}</td>
+                        <td>{{ s.motivo|linebreaksbr }}</td>
+                        <td>
+                            {% if s.justificativo %}
+                                <a href="{% url 'ver_justificativo' s.id %}" target="_blank" rel="noopener" class="link-archivo">📎 Ver</a>
+                            {% else %}<span style="opacity: 0.5;">—</span>{% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if s.estado == 'PENDIENTE' %}badge-pendiente{% elif s.estado == 'APROBADA' %}badge-aprobada{% else %}badge-rechazada{% endif %}">
+                                {% if s.estado == 'PENDIENTE' %}⏳ {% elif s.estado == 'APROBADA' %}✔ {% else %}✖ {% endif %}{{ s.get_estado_display|upper }}
+                            </span>
+                        </td>
+                        <td class="detalle-secundario">
+                            {% if s.estado == 'PENDIENTE' %}
+                                En revisión por el oficial.
+                            {% else %}
+                                {{ s.fecha_resolucion|date:"d/m/Y H:i" }}
+                                {% if s.observacion_oficial %}<br><em>"{{ s.observacion_oficial }}"</em>{% endif %}
+                                {% if s.estado == 'APROBADA' and s.guardias_marcadas %}
+                                    <br>{{ s.guardias_marcadas }} guardia{{ s.guardias_marcadas|pluralize }} marcada{{ s.guardias_marcadas|pluralize }} como "{% if s.es_licencia %}Con Licencia{% else %}Con Permiso{% endif %}".
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="vacio">Aún no ha enviado ninguna solicitud.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
