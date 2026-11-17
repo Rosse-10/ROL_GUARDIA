@@ -30,6 +30,8 @@ urlpatterns = [
     path('esquemas/eliminar/<int:id>/', views.eliminar_esquema, name='eliminar_esquema'),
 
     path('ausencias/', views.gestion_ausencias, name='gestion_ausencias'),
+    path('mis-solicitudes/', views.mis_solicitudes_ausencia, name='mis_solicitudes_ausencia'),
+    path('ausencias/<int:id>/justificativo/', views.ver_justificativo, name='ver_justificativo'),
     
     path('permutas/', views.gestion_permutas, name='gestion_permutas'),
 

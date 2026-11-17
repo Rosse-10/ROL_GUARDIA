@@ -1,87 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gestión de Ausencias - EMI Trópico</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #112233, #1e3c72);
-            color: white;
-            margin: 0;
-            padding: 20px;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        
-        .header {
-            text-align: center;
-            padding: 20px 0;
-            border-bottom: 2px solid #ffc107;
-            margin-bottom: 25px;
-            position: relative;
-        }
-        .header h1 { margin: 0; font-size: 2.2rem; letter-spacing: 1px; }
-        .header p { margin: 5px 0 0 0; color: #ffc107; font-size: 1.1rem; }
-        
-        .back-btn {
-            position: absolute;
-            left: 0;
-            top: 25px;
-            background: #6c757d;
-            color: white;
-            text-decoration: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 0.9rem;
-        }
-        .back-btn:hover { background: #5a6268; }
-
-        .card {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
-            padding: 25px;
-            margin-bottom: 25px;
-            border: 1px solid rgba(255,193,7,0.3);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-        
-        .form-label { font-weight: bold; color: #ffc107; display: block; margin-bottom: 5px; }
-        .form-control, .form-select {
-            width: 100%;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid rgba(255,255,255,0.3);
-            background: rgba(0,0,0,0.3);
-            color: white;
-            box-sizing: border-box;
-            margin-bottom: 15px;
-        }
-        .row { display: flex; gap: 15px; flex-wrap: wrap; }
-        .col { flex: 1; min-width: 200px; }
-
-        .btn-submit {
-            background: #ffc107;
-            color: #112233;
-            border: none;
-            padding: 12px 20px;
-            font-weight: bold;
-            font-size: 1rem;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        .btn-submit:hover { background: #e0a800; }
-
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        th { color: #ffc107; background: rgba(0,0,0,0.4); font-size: 0.9rem; text-transform: uppercase; }
-        tr:hover { background: rgba(255,255,255,0.05); }
-        .badge { background: #17a2b8; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
-        
-        .alert { padding: 12px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
-        .alert-success { background: rgba(40, 167, 69, 0.3); border: 1px solid #28a745; color: #28a745; }
-        .alert-danger { background: rgba(220, 53, 69, 0.3); border: 1px solid #dc3545; color: #dc3545; }
-    </style>
+    {% include 'guardias/_estilos_ausencias.html' %}
 </head>
 <body>
 
@@ -92,88 +15,139 @@
         <p>Escuela Militar de Ingeniería - Unidad Académica del Trópico</p>
     </div>
 
-    <h2 style="color: #ffc107; margin-bottom: 20px;">🛡️ Gestión de Ausencias, Licencias y Bajas</h2>
+    <h2 style="color: #ffc107; margin-bottom: 20px;">🛡️ Gestión de Ausencias, Licencias y Permisos</h2>
 
-    <!-- Mensajes de alerta del sistema -->
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}" role="alert">
-                {{ message }}
-            </div>
-        {% endfor %}
-    {% endif %}
+    {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-danger{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}" role="alert">
+            {{ message }}
+        </div>
+    {% endfor %}
 
-    <!-- Formulario de Registro para el Oficial Administrador -->
-    <div class="card">
-        <h3 style="margin-top: 0; color: #ffc107; margin-bottom: 20px;">Registrar Nueva Ausencia / Comisión</h3>
-        <form method="POST">
-            {% csrf_token %}
-            <div class="row">
-                <div class="col">
-                    <label class="form-label">Estudiante (Cadete)</label>
-                    <select name="estudiante" class="form-select" required>
-                        <option value="">Seleccione un cadete...</option>
-                        {% for est in estudiantes %}
-                            <option value="{{ est.id }}">{{ est.apellidos }}, {{ est.nombres }} ({{ est.anio }}° Año - {{ est.carrera }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col" style="max-width: 220px;">
-                    <label class="form-label">Tipo</label>
-                    <select name="tipo" class="form-select" required>
-                        <option value="LICENCIA">Licencia</option>
-                        <option value="SALUD">Baja Médica / Salud</option>
-                        <option value="PERMISO">Permiso Especial</option>
-                        <option value="COMISION">Comisión Oficial</option>
-                    </select>
-                </div>
-                <div class="col" style="max-width: 200px;">
-                    <label class="form-label">Fecha Inicio</label>
-                    <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" style="color-scheme: dark; cursor: pointer;" onclick="this.showPicker && this.showPicker();" required>
-                </div>
-                <div class="col" style="max-width: 200px;">
-                     <label class="form-label">Fecha Fin</label>
-                     <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" style="color-scheme: dark; cursor: pointer;" onclick="this.showPicker && this.showPicker();" required>
-                </div>
-               
-            </div>
-            <div style="margin-top: 10px;">
-                <label class="form-label">Motivo / Observación</label>
-                <textarea name="motivo" class="form-control" rows="2" placeholder="Detalle la razón..." required></textarea>
-            </div>
-            <button type="submit" class="btn-submit" style="margin-top: 10px;">➕ Registrar Ausencia</button>
-        </form>
-    </div>
-
-    <!-- Historial de Ausencias Registradas -->
-    <div class="card">
-        <h3 style="margin-top: 0; margin-bottom: 15px;">Historial de Inasistencias Activas e Históricas</h3>
+    <!-- 1. Solicitudes enviadas por los cadetes, esperando decisión del oficial -->
+    <div class="card" style="border-color: #ffc107;">
+        <h3>⏳ Solicitudes Pendientes de Aprobación ({{ pendientes|length }})</h3>
         <div style="overflow-x: auto;">
             <table>
                 <thead>
                     <tr>
-                        <th>Estudiante</th>
+                        <th>Cadete</th>
+                        <th>Tipo</th>
+                        <th>Fechas</th>
+                        <th>Motivo</th>
+                        <th>Justificativo</th>
+                        <th style="min-width: 240px;">Decisión del Oficial</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in pendientes %}
+                    <tr>
+                        <td>
+                            <strong>{{ s.estudiante.apellidos }}, {{ s.estudiante.nombres }}</strong><br>
+                            <span class="detalle-secundario">
+                                CI: {{ s.estudiante.ci|default:"—" }} · {{ s.estudiante.get_anio_display }}<br>
+                                {{ s.estudiante.carrera }}<br>
+                                Enviada: {{ s.fecha_solicitud|date:"d/m/Y H:i" }}
+                            </span>
+                        </td>
+                        <td><span class="badge">{{ s.get_tipo_display }}</span></td>
+                        <td>{{ s.fecha_inicio|date:"d/m/Y" }}<br>al {{ s.fecha_fin|date:"d/m/Y" }}</td>
+                        <td>{{ s.motivo|linebreaksbr }}</td>
+                        <td>
+                            {% if s.justificativo %}
+                                <a href="{% url 'ver_justificativo' s.id %}" target="_blank" rel="noopener" class="link-archivo">
+                                    {% if s.justificativo_es_imagen %}
+                                        <img src="{% url 'ver_justificativo' s.id %}" alt="Justificativo" class="miniatura">
+                                    {% endif %}
+                                    📎 Ver archivo
+                                </a>
+                            {% else %}
+                                <span style="opacity: 0.5;">Sin adjunto</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="solicitud_id" value="{{ s.id }}">
+                                <textarea name="observacion" class="form-control" rows="2" placeholder="Observación (obligatoria si rechaza)"></textarea>
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button type="submit" name="accion" value="aprobar" class="btn-aprobar">✔ Aprobar</button>
+                                    <button type="submit" name="accion" value="rechazar" class="btn-rechazar">✖ Rechazar</button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="vacio">No hay solicitudes pendientes. 👍</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 2. Registro directo por el oficial (queda aprobado al instante) -->
+    <details class="card" {% if form.errors %}open{% endif %}>
+        <summary>➕ Registrar Ausencia / Licencia Directamente (queda aprobada)</summary>
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="accion" value="registrar">
+            {% for error in form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+            <div class="row">
+                <div class="col">{% include 'guardias/_campo.html' with campo=form.estudiante %}</div>
+                <div class="col">{% include 'guardias/_campo.html' with campo=form.tipo %}</div>
+            </div>
+            <div class="row">
+                <div class="col">{% include 'guardias/_campo.html' with campo=form.fecha_inicio %}</div>
+                <div class="col">{% include 'guardias/_campo.html' with campo=form.fecha_fin %}</div>
+            </div>
+            {% include 'guardias/_campo.html' with campo=form.motivo %}
+            {% include 'guardias/_campo.html' with campo=form.justificativo ayuda="Opcional. JPG, PNG, WEBP, HEIC o PDF, máximo 5 MB." %}
+            <button type="submit" class="btn-submit">➕ Registrar Ausencia</button>
+        </form>
+    </details>
+
+    <!-- 3. Historial de solicitudes resueltas -->
+    <div class="card">
+        <h3 style="color: white;">📚 Historial de Inasistencias (Aprobadas y Rechazadas)</h3>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cadete</th>
                         <th>Tipo</th>
                         <th>Desde</th>
                         <th>Hasta</th>
                         <th>Motivo</th>
-                        <th>Registrado por</th>
+                        <th>Adjunto</th>
+                        <th>Estado</th>
+                        <th>Resolución</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for aus in ausencias %}
+                    {% for aus in historial %}
                     <tr>
                         <td>{{ aus.estudiante.apellidos }}, {{ aus.estudiante.nombres }}</td>
-                        <td><span class="badge">{{ aus.tipo }}</span></td>
+                        <td><span class="badge">{{ aus.get_tipo_display }}</span></td>
                         <td>{{ aus.fecha_inicio|date:"d/m/Y" }}</td>
                         <td>{{ aus.fecha_fin|date:"d/m/Y" }}</td>
-                        <td>{{ aus.motivo }}</td>
-                        <td><small style="opacity: 0.7;">{{ aus.registrado_por.username|default:"Sistema" }}</small></td>
+                        <td>{{ aus.motivo|linebreaksbr }}</td>
+                        <td>
+                            {% if aus.justificativo %}
+                                <a href="{% url 'ver_justificativo' aus.id %}" target="_blank" rel="noopener" class="link-archivo">📎 Ver</a>
+                            {% else %}<span style="opacity: 0.5;">—</span>{% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if aus.estado == 'APROBADA' %}badge-aprobada{% else %}badge-rechazada{% endif %}">
+                                {{ aus.get_estado_display|upper }}
+                            </span>
+                        </td>
+                        <td class="detalle-secundario">
+                            {{ aus.resuelto_por.username|default:aus.registrado_por.username|default:"Sistema" }}
+                            {% if aus.fecha_resolucion %}<br>{{ aus.fecha_resolucion|date:"d/m/Y H:i" }}{% endif %}
+                            {% if aus.observacion_oficial %}<br><em>"{{ aus.observacion_oficial }}"</em>{% endif %}
+                        </td>
                     </tr>
                     {% empty %}
-                    <tr>
-                        <td colspan="6" style="text-align: center; opacity: 0.6; padding: 25px;">No hay ausencias o licencias registradas.</td>
-                    </tr>
+                    <tr><td colspan="8" class="vacio">No hay ausencias o licencias resueltas.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

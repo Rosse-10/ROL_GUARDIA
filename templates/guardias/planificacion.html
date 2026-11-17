@@ -151,6 +151,7 @@
                             {% for d in detalles %}
                                 {% if d.puesto.orden == 1 %}
                                     {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
                                 {% endif %}
                             {% endfor %}
                         </td>
@@ -160,6 +161,7 @@
                             {% for d in detalles %}
                                 {% if d.puesto.orden == 2 %}
                                     {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
                                 {% endif %}
                             {% endfor %}
                         </td>
@@ -169,6 +171,7 @@
                             {% for d in detalles %}
                                 {% if d.puesto.orden == 3 %}
                                     {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
                                 {% endif %}
                             {% endfor %}
                         </td>
@@ -178,6 +181,7 @@
                             {% for d in detalles %}
                                 {% if d.puesto.orden == 4 %}
                                     {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
                                 {% endif %}
                             {% endfor %}
                         </td>
@@ -187,6 +191,7 @@
                             {% for d in detalles %}
                                 {% if d.puesto.orden == 5 %}
                                     {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
                                 {% endif %}
                             {% endfor %}
                         </td>
@@ -196,6 +201,7 @@
                             {% for d in detalles %}
                                 {% if d.puesto.orden == 6 %}
                                     {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
+                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
                                 {% endif %}
                             {% endfor %}
                         </td>

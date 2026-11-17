@@ -119,6 +119,10 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS =[BASE_DIR /"static"]
 
+# Archivos subidos (justificativos de ausencias). No se publican por URL directa:
+# se sirven solo a través de la vista protegida 'ver_justificativo'.
+MEDIA_ROOT = BASE_DIR / 'media'
+
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
