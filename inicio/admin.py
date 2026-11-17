@@ -50,8 +50,9 @@ class DetalleGuardiaAdmin(admin.ModelAdmin):
 
 @admin.register(AusenciaLicencia)
 class AusenciaLicenciaAdmin(admin.ModelAdmin):
-    list_display = ('estudiante', 'tipo', 'fecha_inicio', 'fecha_fin')
-    list_filter = ('tipo',)
+    list_display = ('estudiante', 'tipo', 'fecha_inicio', 'fecha_fin', 'estado', 'resuelto_por')
+    list_filter = ('estado', 'tipo')
+    search_fields = ('estudiante__apellidos', 'estudiante__nombres', 'estudiante__ci')
 
 @admin.register(Cambio)
 class CambioAdmin(admin.ModelAdmin):

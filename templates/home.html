@@ -99,6 +99,14 @@
             transition: background 0.3s;
         }
         .btn-operativo:hover { background: #1e3c72; border-color: #ffc107; }
+        .badge-contador {
+            background: #dc3545;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 8px;
+            margin-left: 6px;
+            font-size: 0.8rem;
+        }
 
         /* PESTAÑAS TÁCTICAS DEL ESTUDIANTE */
         .tabs-estudiante {
@@ -249,11 +257,23 @@
                 <!-- Botón de Registro de Ausencias y Licencias -->
                 <a href="{% url 'gestion_ausencias' %}" class="btn-operativo" style="background: #fd7e14;">
                     🩺 Ausencias y Licencias
+                    {% if solicitudes_pendientes %}<span class="badge-contador">{{ solicitudes_pendientes }} pendiente{{ solicitudes_pendientes|pluralize }}</span>{% endif %}
                 </a>
 
                 <!-- Botón de Cambios y Permutas -->
                 <a href="{% url 'gestion_permutas' %}" class="btn-operativo" style="background: #6f42c1;">
                 🔄 Cambios y Permutas
+                </a>
+            </div>
+        </div>
+    {% else %}
+        <!-- Panel del Cadete: trámites personales -->
+        <div class="menu-operativo">
+            <h3>📝 Mis Trámites</h3>
+            <div class="operativo-botones">
+                <a href="{% url 'mis_solicitudes_ausencia' %}" class="btn-operativo" style="background: #fd7e14;">
+                    🩺 Solicitar Licencia / Ausencia / Permiso
+                    {% if solicitudes_pendientes %}<span class="badge-contador">{{ solicitudes_pendientes }} en espera</span>{% endif %}
                 </a>
             </div>
         </div>
