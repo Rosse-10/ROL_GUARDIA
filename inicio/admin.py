@@ -26,7 +26,7 @@ class MatriculaAdmin(admin.ModelAdmin):
 
 @admin.register(EsquemaGuardia)
 class EsquemaGuardiaAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'activo')
+    list_display = ('nombre',)
 
 @admin.register(EsquemaVigencia)
 class EsquemaVigenciaAdmin(admin.ModelAdmin):

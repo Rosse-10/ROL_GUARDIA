@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ titulo }} - EMI</title>
     <style>
         body {
@@ -8,32 +10,42 @@
             background: linear-gradient(135deg, #1e3c72, #2a5298);
             color: white;
             margin: 0;
-            padding: 40px;
+            padding: 30px 16px;
         }
         .container {
-            max-width: 600px;
+            max-width: 900px;
             margin: 0 auto;
             background: rgba(255, 255, 255, 0.1);
-            padding: 35px;
+            padding: 30px;
             border-radius: 15px;
             backdrop-filter: blur(10px);
             box-shadow: 0 8px 32px rgba(0,0,0,0.3);
         }
-        h1 { text-align: center; margin-bottom: 25px; color: #ffc107; font-size: 1.8rem; }
-        form p { margin-bottom: 20px; }
+        h1 { text-align: center; margin: 0 0 25px; color: #ffc107; font-size: 1.8rem; }
+        h3 { margin: 30px 0 5px; color: #ffc107; }
+        .ayuda { font-size: 13px; opacity: 0.85; margin: 0 0 12px; }
         label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px; }
-        input[type="text"] {
+        input[type="text"], input[type="number"], input[type="date"], select {
             width: 100%;
-            padding: 12px;
-            border-radius: 8px;
+            padding: 9px;
+            border-radius: 6px;
             border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(0, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.25);
             color: white;
-            font-size: 15px;
+            font-size: 14px;
             box-sizing: border-box;
         }
-        input[type="checkbox"] { transform: scale(1.2); margin-right: 8px; }
-        .btn-container { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; }
+        select option { background: #1e3c72; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+        .tabla-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; background: rgba(255,255,255,0.05); border-radius: 8px; overflow: hidden; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top; }
+        th { background: rgba(0,0,0,0.4); color: #ffc107; font-size: 12px; text-transform: uppercase; }
+        td.centro { text-align: center; }
+        input[type="checkbox"] { transform: scale(1.2); }
+        .error { color: #ffb3b3; font-weight: bold; font-size: 13px; margin-top: 4px; }
+        .error-bloque { background: rgba(220, 53, 69, 0.35); border-left: 4px solid #dc3545; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
+        .btn-container { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 30px; flex-wrap: wrap; }
         .btn { padding: 12px 25px; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; font-size: 15px; }
         .btn-save { background-color: #28a745; }
         .btn-save:hover { background-color: #218838; }
@@ -44,11 +56,74 @@
 <body>
 
 <div class="container">
+    {% include "_mensajes.html" %}
     <h1>🛡️ {{ titulo }}</h1>
 
     <form method="POST">
         {% csrf_token %}
-        {{ form.as_p }}
+
+        <label for="{{ form.nombre.id_for_label }}">Nombre del esquema</label>
+        {{ form.nombre }}
+        {% for error in form.nombre.errors %}<div class="error">⚠️ {{ error }}</div>{% endfor %}
+
+        <!-- PUESTOS -->
+        <h3>👥 Puestos de la guardia</h3>
+        <p class="ayuda">
+            Cada fila es un puesto que se cubre todos los días mientras rija este esquema.
+            El rodillo asigna a cada puesto el siguiente cadete del <strong>año</strong> indicado.
+            Para quitar un puesto marque «Quitar».
+        </p>
+        {{ puestos.management_form }}
+        {% for error in puestos.non_form_errors %}<div class="error-bloque">{{ error }}</div>{% endfor %}
+        <div class="tabla-scroll">
+            <table>
+                <thead>
+                    <tr><th>Orden</th><th>Puesto</th><th>Cargo</th><th>Año</th><th class="centro">Quitar</th></tr>
+                </thead>
+                <tbody>
+                    {% for f in puestos %}
+                        <tr>
+                            {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                            <td>{{ f.orden }}{% for e in f.orden.errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+                            <td>{{ f.nombre }}{% for e in f.nombre.errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+                            <td>{{ f.cargo }}{% for e in f.cargo.errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+                            <td>{{ f.anio_requerido }}{% for e in f.anio_requerido.errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+                            <td class="centro">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+                        </tr>
+                        {% for e in f.non_field_errors %}<tr><td colspan="5"><div class="error">{{ e }}</div></td></tr>{% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="ayuda" style="margin-top: 8px;">💡 Al guardar aparece una fila vacía nueva para agregar otro puesto.</p>
+
+        <!-- VIGENCIAS -->
+        <h3>📅 Vigencias (cuándo rige este esquema)</h3>
+        <p class="ayuda">
+            Fechas en las que este esquema se usa para generar el rol. Ej.: Esquema A desde mediados de febrero
+            hasta que 1er año empieza a hacer guardia; Esquema B desde ahí hasta el febrero siguiente.
+            Las fechas no pueden superponerse con las de otro esquema.
+        </p>
+        {{ vigencias.management_form }}
+        {% for error in vigencias.non_form_errors %}<div class="error-bloque">{{ error }}</div>{% endfor %}
+        <div class="tabla-scroll">
+            <table>
+                <thead>
+                    <tr><th>Desde</th><th>Hasta (vacío = sin fin)</th><th class="centro">Quitar</th></tr>
+                </thead>
+                <tbody>
+                    {% for f in vigencias %}
+                        <tr>
+                            {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                            <td>{{ f.fecha_desde }}{% for e in f.fecha_desde.errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+                            <td>{{ f.fecha_hasta }}{% for e in f.fecha_hasta.errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+                            <td class="centro">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+                        </tr>
+                        {% for e in f.non_field_errors %}<tr><td colspan="3"><div class="error">⚠️ {{ e }}</div></td></tr>{% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
         <div class="btn-container">
             <a href="{% url 'lista_esquemas' %}" class="btn btn-back">⬅️ Cancelar</a>

@@ -76,6 +76,16 @@
         .msg-error {
             color: #f8d7da;
         }
+        .msg-warning {
+            background: rgba(255, 193, 7, 0.2);
+            border-left-color: #ffc107;
+            color: #fff3cd;
+        }
+        .msg-info {
+            background: rgba(23, 162, 184, 0.2);
+            border-left-color: #17a2b8;
+            color: #d1ecf1;
+        }
 
         table {
             width: 100%;
@@ -132,88 +142,40 @@
         <thead>
             <tr>
                 <th>Fecha</th>
+                <th>Esquema</th>
                 <th>Comandante de Guardia (4to Año)</th>
                 <th>Sargento de Guardia (3ro Año)</th>
-                <th>Número de Guardia (2do Año - 1)</th>
-                <th>Número de Guardia (2do Año - 2)</th>
-                <th>Número de Guardia (1ro Año - 1)</th>
-                <th>Número de Guardia (1ro Año - 2)</th>
+                <th>Números de Guardia</th>
             </tr>
         </thead>
         <tbody>
             {% for g in guardias %}
                 <tr>
                     <td class="fecha-col">{{ g.fecha|date:"d/m/Y" }}</td>
-                    
+                    <td>{{ g.esquema.nombre }}</td>
                     {% with detalles=g.detalles.all %}
-                        <!-- 1. Comandante de Guardia (Orden 1) -->
                         <td>
-                            {% for d in detalles %}
-                                {% if d.puesto.orden == 1 %}
-                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
-                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
-                                {% endif %}
-                            {% endfor %}
+                            {% for d in detalles %}{% if d.puesto.cargo == 'COMANDANTE' %}{% include "guardias/_celda_guardia.html" %}{% endif %}{% endfor %}
                         </td>
-
-                        <!-- 2. Sargento de Guardia (Orden 2) -->
                         <td>
-                            {% for d in detalles %}
-                                {% if d.puesto.orden == 2 %}
-                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
-                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
-                                {% endif %}
-                            {% endfor %}
+                            {% for d in detalles %}{% if d.puesto.cargo == 'SARGENTO' %}{% include "guardias/_celda_guardia.html" %}{% endif %}{% endfor %}
                         </td>
-
-                        <!-- 3. Guardia 2do Año - 1 (Orden 3) -->
                         <td>
-                            {% for d in detalles %}
-                                {% if d.puesto.orden == 3 %}
-                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
-                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
-                                {% endif %}
-                            {% endfor %}
-                        </td>
-
-                        <!-- 4. Guardia 2do Año - 2 (Orden 4) -->
-                        <td>
-                            {% for d in detalles %}
-                                {% if d.puesto.orden == 4 %}
-                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
-                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
-                                {% endif %}
-                            {% endfor %}
-                        </td>
-
-                        <!-- 5. Guardia 1er Año - 1 (Orden 5) -->
-                        <td>
-                            {% for d in detalles %}
-                                {% if d.puesto.orden == 5 %}
-                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
-                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
-                                {% endif %}
-                            {% endfor %}
-                        </td>
-
-                        <!-- 6. Guardia 1er Año - 2 (Orden 6) -->
-                        <td>
-                            {% for d in detalles %}
-                                {% if d.puesto.orden == 6 %}
-                                    {{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}
-                                    {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}<br><span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;" title="{{ d.observacion }}">🩺 {{ d.get_asistencia_display }}</span>{% endif %}
-                                {% endif %}
-                            {% endfor %}
+                            {% for d in detalles %}{% if d.puesto.cargo == 'NUMERO' %}
+                                <div style="margin-bottom: 4px;">
+                                    <span style="background: rgba(255,255,255,0.2); padding: 1px 6px; border-radius: 4px; font-size: 0.75rem;">{{ d.puesto.anio_requerido }}° Año</span>
+                                    {% include "guardias/_celda_guardia.html" %}
+                                </div>
+                            {% endif %}{% endfor %}
                         </td>
                     {% endwith %}
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="7" class="vacio">No se han generado roles de guardia todavía. Use el selector de arriba.</td>
+                    <td colspan="5" class="vacio">No se han generado roles de guardia todavía. Use el selector de arriba.</td>
                 </tr>
             {% endfor %}
         </tbody>
-       
     </table>
 
 

@@ -1,0 +1,40 @@
+<div class="card">
+    <h3 class="titulo-card">{{ titulo }}</h3>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Cambio</th>
+                    <th>Motivo</th>
+                    <th>Estado</th>
+                    <th>Detalle</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in lista %}
+                    <tr>
+                        <td>{{ c.id }}</td>
+                        <td><span style="font-size: 0.85rem; opacity: 0.8;">{{ c.get_tipo_display }}</span>{% include "guardias/_resumen_cambio.html" %}</td>
+                        <td>{{ c.motivo }}</td>
+                        <td><span class="badge badge-{{ c.estado|lower }}">{{ c.get_estado_display }}</span></td>
+                        <td style="font-size: 0.85rem;">
+                            {% if c.respuesta_cadete %}💬 {{ c.estudiante_destino.apellidos }}: {{ c.respuesta_cadete }}<br>{% endif %}
+                            {% if c.observacion %}🪖 Oficial: {{ c.observacion }}<br>{% endif %}
+                            {% if c.fecha_resolucion %}{{ c.fecha_resolucion|date:"d/m/Y H:i" }}{% if c.oficial %} · {{ c.oficial.get_full_name|default:c.oficial.username }}{% endif %}{% endif %}
+                            {% if puede_cancelar and c.abierto %}
+                                <form method="POST" style="margin-top: 6px;" onsubmit="return confirm('¿Cancelar esta solicitud?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="cambio_id" value="{{ c.id }}">
+                                    <button type="submit" name="accion" value="cancelar" class="btn-rechazar">🚫 Cancelar</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" style="text-align: center; opacity: 0.7;">No hay solicitudes registradas.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

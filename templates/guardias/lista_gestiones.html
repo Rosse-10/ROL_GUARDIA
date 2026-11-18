@@ -63,6 +63,7 @@
 <body>
 
 <div class="container">
+    {% include "_mensajes.html" %}
     <a href="{% url 'home' %}" class="btn btn-home">🏠 Volver al Inicio</a>
     <h1>📅 Gestiones Académicas</h1>
     <h2>Control de Periodos y Ciclos Lectivos</h2>
@@ -94,7 +95,10 @@
                     </td>
                     <td style="text-align: center;">
                         <a href="{% url 'editar_gestion' g.id %}" class="btn btn-edit">✏️ Editar</a>
-                        <a href="{% url 'eliminar_gestion' g.id %}" class="btn btn-delete" onclick="return confirm('¿Estás seguro de eliminar esta gestión?');">🗑️ Eliminar</a>
+                        <form method="POST" action="{% url 'eliminar_gestion' g.id %}" style="display:inline;" onsubmit="return confirm('¿Estás seguro de eliminar esta gestión?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-delete">🗑️ Eliminar</button>
+                        </form>
                     </td>
                 </tr>
             {% empty %}

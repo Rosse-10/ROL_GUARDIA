@@ -1,28 +1,44 @@
+import calendar
 import os
-from functools import wraps
+from datetime import datetime, timedelta
 
-from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction  # Importante para models.Q
+from django.db.models import ProtectedError
 from django.http import FileResponse, Http404
-from .models import Estudiante, Carrera, Gestion, EsquemaGuardia, EsquemaVigencia, Puesto, GuardiaDia, DetalleGuardia, AusenciaLicencia,Cambio
-from .forms import EstudianteForm, GestionForm, EsquemaGuardiaForm, SolicitudAusenciaForm, AusenciaOficialForm
-from datetime import datetime, timedelta
-from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
-from .models import Puesto, GuardiaDia, DetalleGuardia
-import random
+from django.views.decorators.http import require_POST
 
-def asegurar_carreras():
-    """Garantiza la existencia de las 3 carreras oficiales de la EMI del Trópico"""
-    for codigo, nombre_completo in Carrera.OPCIONES_CARRERA:
-        Carrera.objects.get_or_create(nombre=codigo)
+from .forms import (
+    AusenciaOficialForm, CambiarClaveForm, EsquemaGuardiaForm, EstudianteForm, GestionForm,
+    PuestoFormSet, SolicitudAusenciaForm, SolicitudCambioForm, VigenciaFormSet,
+)
+from .models import (
+    Estudiante, Carrera, Gestion, EsquemaGuardia, EsquemaVigencia, Puesto,
+    GuardiaDia, DetalleGuardia, AusenciaLicencia, Cambio, PromocionAnual,
+)
+from . import permutas as permutas_svc
+from . import promocion as promocion_svc
+from .permisos import es_oficial, solo_oficial
+from .rodillo import MAX_DIAS_POR_GENERACION, generar_rol
+
+def _guardias_con_detalles():
+    """Guardias con sus puestos y cadetes ya cargados (pocas consultas, sin importar cuántos días)"""
+    return GuardiaDia.objects.select_related('esquema').prefetch_related(
+        models.Prefetch(
+            'detalles',
+            queryset=DetalleGuardia.objects.select_related('puesto', 'estudiante').order_by('puesto__orden'),
+        )
+    ).order_by('fecha')
+
 
 @login_required
 def home(request):
-    asegurar_carreras()
-    hoy = timezone.now().date()
-    
+    hoy = timezone.localdate()  # Fecha de Bolivia (TIME_ZONE = America/La_Paz)
+
     # 1. Gestión activa actual
     gestion_activa = Gestion.objects.filter(activa=True).first()
     
@@ -36,54 +52,57 @@ def home(request):
     esquema_vigente = vigencia_actual.esquema if vigencia_actual else None
 
     # 3. Datos para la interfaz (Guardia de hoy, semana y mes)
-    guardia_hoy = GuardiaDia.objects.filter(fecha=hoy).first()
+    guardia_hoy = _guardias_con_detalles().filter(fecha=hoy).first()
 
-    # Previsión de la semana (desde hoy hasta los próximos 7 días)
-    fin_semana = hoy + timedelta(days=7)
-    guardias_semana = GuardiaDia.objects.filter(fecha__gte=hoy, fecha__lte=fin_semana).order_by('fecha')
+    # Previsión de la semana (hoy y los próximos 6 días)
+    guardias_semana = _guardias_con_detalles().filter(fecha__gte=hoy, fecha__lte=hoy + timedelta(days=6))
 
-    # Rol completo del mes actual
+    # Rol del mes actual: del 1 al último día del mes
     inicio_mes = hoy.replace(day=1)
-    guardias_mes = GuardiaDia.objects.filter(fecha__gte=inicio_mes).order_by('fecha')
+    fin_mes = hoy.replace(day=calendar.monthrange(hoy.year, hoy.month)[1])
+    guardias_mes = _guardias_con_detalles().filter(fecha__gte=inicio_mes, fecha__lte=fin_mes)
 
     # 4. Resumen de solicitudes para el botón del panel (oficial o cadete)
-    if request.user.is_superuser:
+    permutas_svc.vencer_pendientes()
+    if es_oficial(request.user):
         solicitudes_pendientes = AusenciaLicencia.objects.filter(estado='PENDIENTE').count()
+        cambios_pendientes = Cambio.objects.filter(estado='ESPERA_OFICIAL').count()
     else:
         estudiante = estudiante_de_usuario(request.user)
         solicitudes_pendientes = estudiante.ausencias.filter(estado='PENDIENTE').count() if estudiante else 0
+        cambios_pendientes = estudiante.cambios_recibidos.filter(estado='ESPERA_CADETE').count() if estudiante else 0
 
     contexto = {
         'hoy': hoy,
         'solicitudes_pendientes': solicitudes_pendientes,
+        'cambios_pendientes': cambios_pendientes,
         'gestion_activa': gestion_activa,
         'esquema_vigente': esquema_vigente,
         'guardia_hoy': guardia_hoy,
         'guardias_semana': guardias_semana,
         'guardias_mes': guardias_mes,
+        'inicio_mes': inicio_mes,
     }
     return render(request, 'home.html', contexto)
 
-@login_required
+@solo_oficial
 def lista_estudiantes(request):
     """Muestra la lista de estudiantes organizada estrictamente por Carrera y Año"""
-    asegurar_carreras()
     carreras = Carrera.objects.all()
     
     datos_agrupados = {}
     for c in carreras:
         datos_agrupados[c] = {
-            1: Estudiante.objects.filter(carrera=c, anio=1).order_by('apellidos', 'nombres'),
-            2: Estudiante.objects.filter(carrera=c, anio=2).order_by('apellidos', 'nombres'),
-            3: Estudiante.objects.filter(carrera=c, anio=3).order_by('apellidos', 'nombres'),
-            4: Estudiante.objects.filter(carrera=c, anio=4).order_by('apellidos', 'nombres'),
+            anio: Estudiante.objects.filter(carrera=c, anio=anio, egresado=False)
+            .select_related('usuario').order_by('apellidos', 'nombres')
+            for anio, _ in Estudiante.OPCIONES_ANIO
         }
-    
-    return render(request, 'estudiantes/lista.html', {'datos_agrupados': datos_agrupados})
+    egresados = Estudiante.objects.filter(egresado=True).select_related('carrera').order_by('carrera__nombre', 'apellidos')
 
-@login_required
+    return render(request, 'estudiantes/lista.html', {'datos_agrupados': datos_agrupados, 'egresados': egresados})
+
+@solo_oficial
 def nuevo_estudiante(request):
-    asegurar_carreras()
     if request.method == 'POST':
         form = EstudianteForm(request.POST)
         if form.is_valid():
@@ -94,7 +113,7 @@ def nuevo_estudiante(request):
         form = EstudianteForm()
     return render(request, 'estudiantes/form_estudiante.html', {'form': form, 'titulo': 'Nuevo Estudiante'})
 
-@login_required
+@solo_oficial
 def editar_estudiante(request, id):
     estudiante = get_object_or_404(Estudiante, id=id)
     if request.method == 'POST':
@@ -106,23 +125,32 @@ def editar_estudiante(request, id):
         form = EstudianteForm(instance=estudiante)
     return render(request, 'estudiantes/form_estudiante.html', {'form': form, 'titulo': 'Editar Estudiante'})
 
-@login_required
+@solo_oficial
 def eliminar_estudiante(request, id):
     estudiante = get_object_or_404(Estudiante, id=id)
     if request.method == 'POST':
-        estudiante.delete()
+        try:
+            estudiante.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                f"No se puede eliminar a {estudiante.apellidos}, {estudiante.nombres} porque tiene guardias "
+                "asignadas. Márquelo como inactivo para sacarlo de las próximas guardias."
+            )
+            return redirect('lista_estudiantes')
+        messages.success(request, "Estudiante eliminado.")
         return redirect('lista_estudiantes')
     return render(request, 'estudiantes/confirmar_eliminar.html', {'estudiante': estudiante})
 
 # --- GESTIONES ACADÉMICAS (DESDE LA UI) ---
 
-@login_required
+@solo_oficial
 def lista_gestiones(request):
     """Permite listar todas las gestiones académicas"""
     gestiones = Gestion.objects.all().order_by('-fecha_inicio')
     return render(request, 'guardias/lista_gestiones.html', {'gestiones': gestiones})
 
-@login_required
+@solo_oficial
 def nueva_gestion(request):
     """Permite registrar una nueva gestión académica"""
     if request.method == 'POST':
@@ -137,142 +165,114 @@ def nueva_gestion(request):
         form = GestionForm()
     return render(request, 'configuracion/form_gestion.html', {'form': form, 'titulo': 'Nueva Gestión'})
 
-def registro(request):
-    return render(request, 'registration/registro.html')
-
 @login_required
+def cambiar_clave(request):
+    """Cambio de contraseña. Es obligatorio para el cadete mientras use la clave inicial."""
+    estudiante = getattr(request.user, 'estudiante', None)
+    obligatorio = estudiante is not None and estudiante.debe_cambiar_clave
+
+    if request.method == 'POST':
+        form = CambiarClaveForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)  # Mantener la sesión abierta tras el cambio
+            if estudiante is not None:
+                Estudiante.objects.filter(pk=estudiante.pk).update(debe_cambiar_clave=False)
+            messages.success(request, "Su contraseña fue cambiada correctamente.")
+            return redirect('home')
+    else:
+        form = CambiarClaveForm(request.user)
+    return render(request, 'registration/cambiar_clave.html', {'form': form, 'obligatorio': obligatorio})
+
+
+@solo_oficial
+@require_POST
+def restablecer_clave(request, id):
+    """El oficial devuelve la contraseña del cadete a su primer apellido"""
+    estudiante = get_object_or_404(Estudiante.objects.select_related('usuario'), id=id)
+    if estudiante.restablecer_clave():
+        messages.success(
+            request,
+            f"Clave de {estudiante.apellidos}, {estudiante.nombres} restablecida. "
+            f"Usuario: {estudiante.usuario.username} — contraseña: su primer apellido en minúsculas. "
+            "Deberá cambiarla al ingresar."
+        )
+    else:
+        messages.error(request, "Ese estudiante todavía no tiene cuenta: cargue su C.I. para crearla.")
+    return redirect('lista_estudiantes')
+
+def _leer_fecha(valor):
+    try:
+        return datetime.strptime(valor or '', '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _informar_generacion(request, resultado):
+    """Traduce el resultado del rodillo a mensajes para el oficial"""
+    if resultado.dias_generados:
+        messages.success(request, f"Rodillo aplicado: {resultado.dias_generados} día(s) de guardia generados.")
+    if resultado.dias_ya_completos:
+        messages.info(request, f"{resultado.dias_ya_completos} día(s) ya estaban generados y no se modificaron.")
+    if resultado.esquemas_sin_puestos:
+        messages.error(
+            request,
+            f"El esquema {', '.join(sorted(resultado.esquemas_sin_puestos))} no tiene puestos configurados; "
+            "esos días no se generaron. Cargue sus puestos desde el panel de administración."
+        )
+    if resultado.dias_sin_esquema:
+        dias = resultado.dias_sin_esquema
+        messages.warning(
+            request,
+            f"{len(dias)} día(s) sin esquema vigente (del {dias[0]:%d/%m/%Y} al {dias[-1]:%d/%m/%Y}); no se generaron."
+        )
+    if resultado.puestos_vacios:
+        ejemplos = ', '.join(f"{p.nombre} el {f:%d/%m}" for f, p in resultado.puestos_vacios[:5])
+        messages.warning(
+            request,
+            f"{len(resultado.puestos_vacios)} puesto(s) quedaron sin cadete disponible ({ejemplos}...). Asígnelos manualmente."
+        )
+    if resultado.turnos_perdidos:
+        ejemplos = ', '.join(f"{e.apellidos} ({f:%d/%m})" for f, e in resultado.turnos_perdidos[:5])
+        messages.info(request, f"Perdieron su turno por licencia/permiso: {ejemplos}.")
+
+
+@solo_oficial
 def planificacion_guardias(request):
     """Vista principal para la administración y generación del rodillo de guardias"""
     if request.method == 'POST':
-        fecha_str = request.POST.get('fecha_generar')
-        if fecha_str:
-            fecha_evaluar = datetime.strptime(fecha_str, '%Y-%m-%d').date()
-            
-            vigencia = EsquemaVigencia.objects.filter(
-                fecha_desde__lte=fecha_evaluar
-            ).filter(
-                models.Q(fecha_hasta__gte=fecha_evaluar) | models.Q(fecha_hasta__isnull=True)
-            ).first()
-            
-            if not vigencia:
-                messages.error(request, f"No existe un esquema de guardia vigente para la fecha {fecha_evaluar}.")
-            else:
-                guardia_dia, creada = GuardiaDia.objects.get_or_create(
-                    fecha=fecha_evaluar, 
-                    defaults={'esquema': vigencia.esquema, 'creado_por': request.user}
-                )
+        fecha = _leer_fecha(request.POST.get('fecha_generar'))
+        if fecha is None:
+            messages.error(request, "Indique una fecha válida.")
+        else:
+            _informar_generacion(request, generar_rol(fecha, fecha, request.user))
+        return redirect('planificacion_guardias')
 
-                puestos = Puesto.objects.filter(esquema=vigencia.esquema)
-                for puesto in puestos:
-                    if not DetalleGuardia.objects.filter(guardia=guardia_dia, puesto=puesto).exists():
-                        asignados_hoy = DetalleGuardia.objects.filter(guardia=guardia_dia).values_list('estudiante_id', flat=True)
-
-                        # 1. Obtener IDs de estudiantes con ausencia/licencia activa en la fecha evaluada
-                        ausentes_hoy = AusenciaLicencia.objects.filter(
-                            estado='APROBADA',
-                            fecha_inicio__lte=fecha_evaluar,
-                            fecha_fin__gte=fecha_evaluar
-                        ).values_list('estudiante_id', flat=True)
-
-                        # 2. Filtrar candidatos excluyendo asignados hoy Y ausentes
-                        candidatos = Estudiante.objects.filter(
-                            anio=puesto.anio_requerido,
-                            activo=True
-                        ).exclude(
-                            id__in=asignados_hoy
-                        ).exclude(
-                            id__in=ausentes_hoy
-                        )
-
-                        if candidatos.exists():
-                            estudiante_elegido = random.choice(list(candidatos))
-                            DetalleGuardia.objects.create(
-                                guardia=guardia_dia,
-                                puesto=puesto,
-                                estudiante=estudiante_elegido,
-                                registrado_por=request.user
-                            )
-                
-                messages.success(request, f"¡Rodillo generado con éxito para el {fecha_evaluar}!")
-                return redirect('planificacion_guardias')
-
-    guardias_generadas = GuardiaDia.objects.all().order_by('-fecha')
+    guardias_generadas = GuardiaDia.objects.select_related('esquema').prefetch_related(
+        models.Prefetch('detalles', queryset=DetalleGuardia.objects.select_related('estudiante', 'puesto').order_by('puesto__orden'))
+    ).order_by('-fecha')
     return render(request, 'guardias/planificacion.html', {'guardias': guardias_generadas})
 
-@login_required
-def generar_rango_guardias(request):
-    """Genera el rodillo de guardias masivo para un rango de fechas (Inicio a Fin)"""
-    if request.method == 'POST':
-        fecha_inicio_str = request.POST.get('fecha_inicio')
-        fecha_fin_str = request.POST.get('fecha_fin')
-        
-        if fecha_inicio_str and fecha_fin_str:
-            f_inicio = datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date()
-            f_fin = datetime.strptime(fecha_fin_str, '%Y-%m-%d').date()
-            
-            if f_inicio > f_fin:
-                messages.error(request, "La fecha de inicio no puede ser posterior a la fecha de fin.")
-                return redirect('planificacion_guardias')
-            
-            delta = timedelta(days=1)
-            f_actual = f_inicio
-            dias_generados = 0
-            
-            while f_actual <= f_fin:
-                vigencia = EsquemaVigencia.objects.filter(
-                    fecha_desde__lte=f_actual
-                ).filter(
-                    models.Q(fecha_hasta__gte=f_actual) | models.Q(fecha_hasta__isnull=True)
-                ).first()
-                
-                if vigencia:
-                    guardia_dia, creada = GuardiaDia.objects.get_or_create(
-                        fecha=f_actual, 
-                        defaults={'esquema': vigencia.esquema, 'creado_por': request.user}
-                    )
 
-                    puestos = Puesto.objects.filter(esquema=vigencia.esquema)
-                    for puesto in puestos:
-                        if not DetalleGuardia.objects.filter(guardia=guardia_dia, puesto=puesto).exists():
-                            asignados_hoy = DetalleGuardia.objects.filter(guardia=guardia_dia).values_list('estudiante_id', flat=True)
-                            
-                            # 1. Obtener IDs de estudiantes con ausencia/licencia activa en la fecha evaluada (f_actual)
-                            ausentes_hoy = AusenciaLicencia.objects.filter(
-                                estado='APROBADA',
-                                fecha_inicio__lte=f_actual,
-                                fecha_fin__gte=f_actual
-                            ).values_list('estudiante_id', flat=True)
-                            
-                            # 2. Filtrar candidatos excluyendo asignados hoy Y ausentes
-                            candidatos = Estudiante.objects.filter(
-                                anio=puesto.anio_requerido,
-                                activo=True
-                            ).exclude(
-                                id__in=asignados_hoy
-                            ).exclude(
-                                id__in=ausentes_hoy
-                            )
-                            
-                            if candidatos.exists():
-                                estudiante_elegido = random.choice(list(candidatos))
-                                DetalleGuardia.objects.create(
-                                    guardia=guardia_dia,
-                                    puesto=puesto,
-                                    estudiante=estudiante_elegido,
-                                    registrado_por=request.user
-                                )
-                    dias_generados += 1
-                
-                f_actual += delta
-                
-            messages.success(request, f"¡Rol secuencial generado con éxito! Se procesaron {dias_generados} días de servicio.")
-            return redirect('planificacion_guardias')
-            
+@solo_oficial
+@require_POST
+def generar_rango_guardias(request):
+    """Genera el rol de guardia para un rango de fechas con el rodillo (ver inicio/rodillo.py)"""
+    f_inicio = _leer_fecha(request.POST.get('fecha_inicio'))
+    f_fin = _leer_fecha(request.POST.get('fecha_fin'))
+
+    if f_inicio is None or f_fin is None:
+        messages.error(request, "Indique fechas de inicio y fin válidas.")
+    elif f_inicio > f_fin:
+        messages.error(request, "La fecha de inicio no puede ser posterior a la fecha de fin.")
+    elif (f_fin - f_inicio).days + 1 > MAX_DIAS_POR_GENERACION:
+        messages.error(request, f"Como máximo se pueden generar {MAX_DIAS_POR_GENERACION} días de una vez.")
+    else:
+        _informar_generacion(request, generar_rol(f_inicio, f_fin, request.user))
     return redirect('planificacion_guardias')
 
 
-
-@login_required
+@solo_oficial
 def editar_gestion(request, id):
     gestion = get_object_or_404(Gestion, id=id)
     if request.method == 'POST':
@@ -287,51 +287,79 @@ def editar_gestion(request, id):
         form = GestionForm(instance=gestion)
     return render(request, 'configuracion/form_gestion.html', {'form': form, 'titulo': 'Editar Gestión Académica'})
 
-@login_required
+@solo_oficial
+@require_POST
 def eliminar_gestion(request, id):
     gestion = get_object_or_404(Gestion, id=id)
-    gestion.delete()
+    try:
+        gestion.delete()
+    except ProtectedError:
+        messages.error(request, f"No se puede eliminar la gestión {gestion} porque tiene datos asociados.")
+        return redirect('lista_gestiones')
     messages.success(request, "¡Gestión eliminada exitosamente!")
     return redirect('lista_gestiones')
 
-@login_required
+@solo_oficial
 def lista_esquemas(request):
-    esquemas = EsquemaGuardia.objects.all()
-    return render(request, 'configuracion/lista_esquemas.html', {'esquemas': esquemas})
+    hoy = timezone.localdate()
+    esquemas = list(EsquemaGuardia.objects.prefetch_related(
+        models.Prefetch('puesto_set', queryset=Puesto.objects.order_by('orden', 'id')),
+        models.Prefetch('esquemavigencia_set', queryset=EsquemaVigencia.objects.order_by('fecha_desde')),
+    ).order_by('nombre'))
+    for e in esquemas:
+        e.vigente_hoy = any(
+            v.fecha_desde <= hoy and (v.fecha_hasta is None or hoy <= v.fecha_hasta)
+            for v in e.esquemavigencia_set.all()
+        )
+    return render(request, 'configuracion/lista_esquemas.html', {'esquemas': esquemas, 'hoy': hoy})
 
-@login_required
+
+def _formulario_esquema(request, esquema, titulo):
+    """Alta/edición de un esquema junto con sus puestos y sus vigencias en una sola pantalla"""
+    datos = request.POST if request.method == 'POST' else None
+    form = EsquemaGuardiaForm(datos, instance=esquema)
+    puestos = PuestoFormSet(datos, instance=esquema, prefix='puestos')
+    vigencias = VigenciaFormSet(datos, instance=esquema, prefix='vigencias')
+
+    if request.method == 'POST':
+        if form.is_valid() and puestos.is_valid() and vigencias.is_valid():
+            with transaction.atomic():
+                esquema = form.save()
+                puestos.instance = vigencias.instance = esquema
+                puestos.save()
+                vigencias.save()
+            messages.success(request, f"Esquema «{esquema.nombre}» guardado correctamente.")
+            return redirect('lista_esquemas')
+        messages.error(request, "Revise los datos marcados en el formulario.")
+
+    return render(request, 'configuracion/form_esquema.html', {
+        'form': form, 'puestos': puestos, 'vigencias': vigencias, 'titulo': titulo,
+    })
+
+
+@solo_oficial
 def nuevo_esquema(request):
-    if request.method == 'POST':
-        form = EsquemaGuardiaForm(request.POST)
-        if form.is_valid():
-            if form.cleaned_data.get('activo'):
-                EsquemaGuardia.objects.filter(activo=True).update(activo=False)
-            form.save()
-            messages.success(request, "Esquema de guardia registrado exitosamente.")
-            return redirect('lista_esquemas')
-    else:
-        form = EsquemaGuardiaForm()
-    return render(request, 'configuracion/form_esquema.html', {'form': form, 'titulo': 'Nuevo Esquema de Guardia'})
+    return _formulario_esquema(request, EsquemaGuardia(), 'Nuevo Esquema de Guardia')
 
-@login_required
+
+@solo_oficial
 def editar_esquema(request, id):
-    esquema = get_object_or_404(EsquemaGuardia, id=id)
-    if request.method == 'POST':
-        form = EsquemaGuardiaForm(request.POST, instance=esquema)
-        if form.is_valid():
-            if form.cleaned_data.get('activo'):
-                EsquemaGuardia.objects.filter(activo=True).exclude(id=id).update(activo=False)
-            form.save()
-            messages.success(request, "Esquema actualizado exitosamente.")
-            return redirect('lista_esquemas')
-    else:
-        form = EsquemaGuardiaForm(instance=esquema)
-    return render(request, 'configuracion/form_esquema.html', {'form': form, 'titulo': 'Editar Esquema de Guardia'})
+    return _formulario_esquema(request, get_object_or_404(EsquemaGuardia, id=id), 'Editar Esquema de Guardia')
 
-@login_required
+
+@solo_oficial
+@require_POST
 def eliminar_esquema(request, id):
     esquema = get_object_or_404(EsquemaGuardia, id=id)
-    esquema.delete()
+    try:
+        esquema.delete()
+    except ProtectedError:
+        messages.error(
+            request,
+            f"No se puede eliminar el esquema {esquema.nombre} porque ya se usó en guardias generadas. "
+            "Márquelo como inactivo en su lugar."
+        )
+        return redirect('lista_esquemas')
     messages.success(request, "Esquema eliminado exitosamente.")
     return redirect('lista_esquemas')
 
@@ -350,18 +378,6 @@ def estudiante_de_usuario(user):
             estudiante.usuario = user
             Estudiante.objects.filter(pk=estudiante.pk).update(usuario=user)
     return estudiante
-
-
-def solo_oficial(vista):
-    """Restringe una vista al Oficial Administrador (superusuario)"""
-    @wraps(vista)
-    @login_required
-    def envoltura(request, *args, **kwargs):
-        if not request.user.is_superuser:
-            messages.error(request, "No tiene permisos para acceder a ese módulo.")
-            return redirect('home')
-        return vista(request, *args, **kwargs)
-    return envoltura
 
 
 def _avisar_guardias_afectadas(request, ausencia, cantidad):
@@ -489,7 +505,7 @@ def ver_justificativo(request, id):
     """Entrega el archivo justificativo solo al oficial o al cadete dueño de la solicitud"""
     ausencia = get_object_or_404(AusenciaLicencia.objects.select_related('estudiante'), id=id)
     es_dueno = ausencia.estudiante.usuario_id == request.user.id
-    if not (request.user.is_superuser or es_dueno) or not ausencia.justificativo:
+    if not (es_oficial(request.user) or es_dueno) or not ausencia.justificativo:
         raise Http404("Justificativo no disponible")
     try:
         archivo = ausencia.justificativo.open('rb')
@@ -499,415 +515,134 @@ def ver_justificativo(request, id):
 
 @login_required
 def gestion_permutas(request):
+    """Cambios y permutas. Cadete: solicitar, responder lo que le piden y cancelar.
+    Oficial: registrar cambios directos y aprobar/rechazar los que aceptó el otro cadete."""
+    es_admin = es_oficial(request.user)
+    estudiante = None if es_admin else estudiante_de_usuario(request.user)
+    if not es_admin and estudiante is None:
+        messages.error(request, "Su cuenta no está vinculada a ningún estudiante. Consulte con el oficial.")
+        return redirect('home')
 
-    # ==========================================
-    # IDENTIFICAR AL USUARIO Y SU ROL
-    # ==========================================
-
-    es_admin = request.user.is_superuser
-    estudiante_actual = None
-
-    if not es_admin:
-
-        # Buscar al estudiante utilizando su CI
-        estudiante_actual = Estudiante.objects.filter(
-            ci=request.user.username
-        ).first()
-
-        if not estudiante_actual:
-            messages.error(
-                request,
-                "No se encontró un estudiante asociado a esta cuenta."
-            )
-            return redirect('home')
-
-    hoy = timezone.now().date()
-
-    # ==========================================
-    # PROCESAR SOLICITUDES DEL FORMULARIO
-    # ==========================================
+    permutas_svc.vencer_pendientes()
+    form = SolicitudCambioForm(estudiante=estudiante, por_oficial=es_admin)
 
     if request.method == 'POST':
-
         accion = request.POST.get('accion')
-
-        # --------------------------------------
-        # CREAR SOLICITUD DE CAMBIO O PERMUTA
-        # --------------------------------------
-
-        if accion == 'crear':
-
-            tipo = request.POST.get('tipo')
-            detalle_origen_id = request.POST.get('detalle_origen')
-            detalle_destino_id = request.POST.get('detalle_destino')
-            estudiante_destino_id = request.POST.get('estudiante_destino')
-            motivo = request.POST.get('motivo', '').strip()
-
-            try:
-
-                detalle_origen = DetalleGuardia.objects.select_related(
-                    'estudiante',
-                    'guardia'
-                ).get(
-                    id=detalle_origen_id
-                )
-
-                # El estudiante solo puede solicitar cambios
-                # sobre una guardia que le pertenece.
-                if not es_admin and detalle_origen.estudiante != estudiante_actual:
-
-                    messages.error(
-                        request,
-                        "No puedes solicitar cambios sobre la guardia de otro estudiante."
+        try:
+            if accion == 'crear':
+                form = SolicitudCambioForm(request.POST, estudiante=estudiante, por_oficial=es_admin)
+                if form.is_valid():
+                    d = form.cleaned_data
+                    cambio = permutas_svc.solicitar(
+                        request.user, d['tipo'], d['detalle_origen'], d.get('detalle_destino'),
+                        d.get('reemplazante'), d['motivo'], por_oficial=es_admin,
                     )
+                    if es_admin:
+                        messages.success(request, f"{cambio.get_tipo_display()} registrada y aplicada al rol de guardia.")
+                    else:
+                        messages.success(
+                            request,
+                            f"Solicitud enviada. Ahora {cambio.estudiante_destino.apellidos} debe aceptarla "
+                            "y luego el oficial la aprobará."
+                        )
                     return redirect('gestion_permutas')
+                messages.error(request, "Revise los datos de la solicitud.")
 
-                # Verificar que la guardia todavía sea futura
-                if detalle_origen.guardia.fecha < hoy:
-
-                    messages.error(
-                        request,
-                        "No puedes solicitar cambios sobre una guardia pasada."
-                    )
-                    return redirect('gestion_permutas')
-
-                detalle_destino = None
-                estudiante_destino = None
-
-                # ----------------------------------
-                # VALIDAR PERMUTA
-                # ----------------------------------
-
-                if tipo == 'PERMUTA':
-
-                    if not detalle_destino_id:
-
-                        messages.error(
-                            request,
-                            "Debes seleccionar la guardia del estudiante con quien deseas intercambiar."
-                        )
-                        return redirect('gestion_permutas')
-
-                    detalle_destino = DetalleGuardia.objects.select_related(
-                        'estudiante',
-                        'guardia'
-                    ).get(
-                        id=detalle_destino_id
-                    )
-
-                    if detalle_destino.id == detalle_origen.id:
-
-                        messages.error(
-                            request,
-                            "No puedes intercambiar una guardia contigo mismo."
-                        )
-                        return redirect('gestion_permutas')
-
-                    if detalle_destino.guardia.fecha < hoy:
-
-                        messages.error(
-                            request,
-                            "No puedes seleccionar una guardia pasada."
-                        )
-                        return redirect('gestion_permutas')
-
-                    estudiante_destino = detalle_destino.estudiante
-
-                # ----------------------------------
-                # VALIDAR REEMPLAZO
-                # ----------------------------------
-
-                elif tipo == 'REEMPLAZO':
-
-                    if not estudiante_destino_id:
-
-                        messages.error(
-                            request,
-                            "Debes seleccionar al estudiante que realizará el reemplazo."
-                        )
-                        return redirect('gestion_permutas')
-
-                    estudiante_destino = Estudiante.objects.get(
-                        id=estudiante_destino_id,
-                        activo=True
-                    )
-
-                    if estudiante_destino == detalle_origen.estudiante:
-
-                        messages.error(
-                            request,
-                            "No puedes seleccionarte a ti mismo como reemplazante."
-                        )
-                        return redirect('gestion_permutas')
-
+            elif accion in ('aceptar', 'rechazar_cadete') and estudiante is not None:
+                cambio = get_object_or_404(Cambio, id=request.POST.get('cambio_id'), estudiante_destino=estudiante)
+                permutas_svc.responder_cadete(cambio, estudiante, accion == 'aceptar',
+                                              request.POST.get('respuesta', '').strip())
+                if accion == 'aceptar':
+                    messages.success(request, "Aceptó la solicitud. Ahora queda esperando la aprobación del oficial.")
                 else:
-
-                    messages.error(
-                        request,
-                        "El tipo de solicitud no es válido."
-                    )
-                    return redirect('gestion_permutas')
-
-                # ----------------------------------
-                # REGISTRAR SOLICITUD
-                # ----------------------------------
-
-                Cambio.objects.create(
-                    tipo=tipo,
-                    detalle_origen=detalle_origen,
-                    detalle_destino=detalle_destino,
-                    estudiante_origen=detalle_origen.estudiante,
-                    estudiante_destino=estudiante_destino,
-                    motivo=motivo,
-                    estado='PENDIENTE'
-                )
-
-                messages.success(
-                    request,
-                    "La solicitud se registró correctamente y está pendiente de aprobación."
-                )
-
-            except DetalleGuardia.DoesNotExist:
-
-                messages.error(
-                    request,
-                    "No se encontró la guardia seleccionada."
-                )
-
-            except Estudiante.DoesNotExist:
-
-                messages.error(
-                    request,
-                    "No se encontró el estudiante seleccionado."
-                )
-
-            return redirect('gestion_permutas')
-
-        # --------------------------------------
-        # APROBAR O RECHAZAR SOLICITUD
-        # --------------------------------------
-
-        elif accion in ['aprobar', 'rechazar']:
-
-            if not es_admin:
-
-                messages.error(
-                    request,
-                    "No tienes permiso para resolver solicitudes."
-                )
+                    messages.warning(request, "Rechazó la solicitud.")
                 return redirect('gestion_permutas')
 
-            cambio_id = request.POST.get('cambio_id')
-            observacion = request.POST.get('observacion', '').strip()
+            elif accion == 'cancelar' and estudiante is not None:
+                cambio = get_object_or_404(Cambio, id=request.POST.get('cambio_id'), estudiante_origen=estudiante)
+                permutas_svc.cancelar(cambio, estudiante)
+                messages.info(request, "Solicitud cancelada.")
+                return redirect('gestion_permutas')
 
-            try:
-
-                cambio = Cambio.objects.select_related(
-                    'detalle_origen',
-                    'detalle_destino',
-                    'estudiante_destino'
-                ).get(
-                    id=cambio_id
-                )
-
-                if cambio.estado != 'PENDIENTE':
-
-                    messages.warning(
-                        request,
-                        "Esta solicitud ya fue resuelta anteriormente."
-                    )
-                    return redirect('gestion_permutas')
-
-                # ----------------------------------
-                # APROBAR SOLICITUD
-                # ----------------------------------
-
+            elif accion in ('aprobar', 'rechazar') and es_admin:
+                cambio = get_object_or_404(Cambio, id=request.POST.get('cambio_id'))
+                permutas_svc.resolver_oficial(cambio, request.user, accion == 'aprobar',
+                                              request.POST.get('observacion', '').strip())
                 if accion == 'aprobar':
-
-                    if cambio.tipo == 'PERMUTA':
-
-                        if not cambio.detalle_destino:
-
-                            messages.error(
-                                request,
-                                "No se puede aprobar la permuta porque no tiene una guardia de destino."
-                            )
-                            return redirect('gestion_permutas')
-
-                        # Intercambiar los estudiantes
-                        estudiante_temporal = cambio.detalle_origen.estudiante
-
-                        cambio.detalle_origen.estudiante = (
-                            cambio.detalle_destino.estudiante
-                        )
-
-                        cambio.detalle_destino.estudiante = (
-                            estudiante_temporal
-                        )
-
-                        cambio.detalle_origen.save()
-                        cambio.detalle_destino.save()
-
-                    elif cambio.tipo == 'REEMPLAZO':
-
-                        if not cambio.estudiante_destino:
-
-                            messages.error(
-                                request,
-                                "No se puede aprobar el reemplazo porque no tiene un estudiante asignado."
-                            )
-                            return redirect('gestion_permutas')
-
-                        # Asignar al estudiante reemplazante
-                        cambio.detalle_origen.estudiante = (
-                            cambio.estudiante_destino
-                        )
-
-                        cambio.detalle_origen.save()
-
-                    cambio.estado = 'ACEPTADO'
-
-                    messages.success(
-                        request,
-                        "La solicitud fue aprobada correctamente."
-                    )
-
-                # ----------------------------------
-                # RECHAZAR SOLICITUD
-                # ----------------------------------
-
+                    messages.success(request, f"{cambio.get_tipo_display()} #{cambio.pk} aprobada y aplicada al rol.")
                 else:
-
-                    cambio.estado = 'RECHAZADO'
-
-                    messages.warning(
-                        request,
-                        "La solicitud fue rechazada."
-                    )
-
-                # ----------------------------------
-                # GUARDAR RESOLUCIÓN
-                # ----------------------------------
-
-                cambio.oficial_id = request.user
-                cambio.fecha_resolucion = timezone.now()
-                cambio.observacion = observacion
-
-                cambio.save()
-
-            except Cambio.DoesNotExist:
-
-                messages.error(
-                    request,
-                    "No se encontró la solicitud seleccionada."
-                )
-
+                    messages.warning(request, f"{cambio.get_tipo_display()} #{cambio.pk} rechazada.")
+                return redirect('gestion_permutas')
+            else:
+                messages.error(request, "Acción no permitida.")
+                return redirect('gestion_permutas')
+        except permutas_svc.CambioInvalido as error:
+            messages.error(request, str(error))
             return redirect('gestion_permutas')
 
-    # ==========================================
-    # LISTADO DE ESTUDIANTES ACTIVOS
-    # ==========================================
-
-    estudiantes = Estudiante.objects.filter(
-        activo=True
-    ).order_by(
-        'anio',
-        'apellidos',
-        'nombres'
+    cambios = Cambio.objects.select_related(
+        'detalle_origen__guardia', 'detalle_origen__puesto', 'detalle_destino__guardia', 'detalle_destino__puesto',
+        'estudiante_origen', 'estudiante_destino', 'oficial',
     )
-
-    if not es_admin and estudiante_actual:
-
-        estudiantes = estudiantes.exclude(
-            id=estudiante_actual.id
-        )
-
-    # ==========================================
-    # GUARDIAS DEL ESTUDIANTE
-    # ==========================================
-
-    detalles_guardia = DetalleGuardia.objects.select_related(
-        'guardia',
-        'estudiante',
-        'puesto'
-    ).filter(
-        guardia__fecha__gte=hoy
-    ).order_by(
-        'guardia__fecha'
-    )
-
-    if not es_admin:
-
-        detalles_guardia = detalles_guardia.filter(
-            estudiante=estudiante_actual
-        )
-
-    # ==========================================
-    # GUARDIAS DISPONIBLES PARA PERMUTAR
-    # ==========================================
-
-    detalles_destino = DetalleGuardia.objects.select_related(
-        'guardia',
-        'estudiante',
-        'puesto'
-    ).filter(
-        guardia__fecha__gte=hoy
-    ).order_by(
-        'guardia__fecha'
-    )
-
-    if not es_admin:
-
-        detalles_destino = detalles_destino.exclude(
-            estudiante=estudiante_actual
-        )
-
-    # ==========================================
-    # HISTORIAL DE SOLICITUDES
-    # ==========================================
-
     if es_admin:
-
-        # Administrador: puede visualizar todas las solicitudes.
-        cambios = Cambio.objects.select_related(
-            'estudiante_origen',
-            'estudiante_destino',
-            'detalle_origen',
-            'detalle_destino'
-        ).order_by(
-            '-fecha_solicitud'
-        )
-
+        contexto = {
+            'por_aprobar': cambios.filter(estado='ESPERA_OFICIAL').order_by('detalle_origen__guardia__fecha'),
+            'esperando_cadete': cambios.filter(estado='ESPERA_CADETE'),
+            'historial': cambios.exclude(estado__in=Cambio.ESTADOS_ABIERTOS)[:100],
+        }
     else:
+        contexto = {
+            'me_pidieron': cambios.filter(estudiante_destino=estudiante, estado='ESPERA_CADETE'),
+            'mis_solicitudes': cambios.filter(estudiante_origen=estudiante)[:50],
+            'recibidas': cambios.filter(estudiante_destino=estudiante).exclude(estado='ESPERA_CADETE')[:50],
+            'mis_guardias': DetalleGuardia.objects.filter(
+                estudiante=estudiante, guardia__fecha__gte=timezone.localdate()
+            ).select_related('guardia', 'puesto').order_by('guardia__fecha')[:10],
+        }
+    contexto.update({'es_admin': es_admin, 'estudiante_actual': estudiante, 'form': form})
+    return render(request, 'guardias/permutas.html', contexto)
 
-        # Estudiante: solamente visualiza las solicitudes
-        # que él mismo realizó.
-        cambios = Cambio.objects.filter(
-            estudiante_origen=estudiante_actual
-        ).select_related(
-            'estudiante_origen',
-            'estudiante_destino',
-            'detalle_origen',
-            'detalle_destino'
-        ).order_by(
-            '-fecha_solicitud'
+
+# ==========================================================
+# PROMOCIÓN DE AÑO (ver inicio/promocion.py)
+# ==========================================================
+
+@solo_oficial
+def promocion_anio(request):
+    """Vista previa didáctica de la promoción de año y su confirmación"""
+    if request.method == 'POST':
+        if not request.POST.get('confirmo'):
+            messages.error(request, "Marque la casilla de confirmación para realizar la promoción.")
+            return redirect('promocion_anio')
+        repiten = [int(i) for i in request.POST.getlist('repite') if i.isdigit()]
+        promocion = promocion_svc.promover(request.user, repiten)
+        r = promocion.resumen
+        messages.success(
+            request,
+            f"¡Promoción realizada! Egresaron {r['egresados']} cadetes de 5to año; "
+            f"{r['a_5to']} pasaron a 5to, {r['a_4to']} a 4to, {r['a_3ro']} a 3ro y {r['a_2do']} a 2do"
+            + (f"; {r['repiten']} repiten el año." if r['repiten'] else ".")
+            + " Ahora registre a los nuevos cadetes de 1er año."
         )
+        return redirect('lista_estudiantes')
 
-    # ==========================================
-    # ENVIAR INFORMACIÓN A LA PLANTILLA
-    # ==========================================
+    ultima = promocion_svc.ultima_promocion()
+    reciente = bool(ultima and not ultima.deshecha_en and (timezone.now() - ultima.realizada_en).days < 180)
+    return render(request, 'estudiantes/promocion.html', {
+        'pasos': promocion_svc.vista_previa(),
+        'ultima': ultima,
+        'reciente': reciente,
+        'guardias_futuras': promocion_svc.guardias_futuras_generadas(),
+    })
 
-    contexto = {
-        'es_admin': es_admin,
-        'estudiante_actual': estudiante_actual,
-        'estudiantes': estudiantes,
-        'detalles_guardia': detalles_guardia,
-        'detalles_destino': detalles_destino,
-        'cambios': cambios,
-    }
 
-    return render(
-        request,
-        'guardias/permutas.html',
-        contexto
-    )
+@solo_oficial
+@require_POST
+def deshacer_promocion(request, id):
+    promocion = get_object_or_404(PromocionAnual, id=id)
+    if promocion.deshecha_en or promocion != promocion_svc.ultima_promocion():
+        messages.error(request, "Solo se puede deshacer la última promoción realizada.")
+        return redirect('promocion_anio')
+    restaurados = promocion_svc.deshacer(promocion)
+    messages.success(request, f"Promoción deshecha: {restaurados} cadetes volvieron a su año y estado anteriores.")
+    return redirect('lista_estudiantes')

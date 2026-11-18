@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Promoción de año - EMI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            margin: 0;
+            padding: 30px 16px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        h1 { text-align: center; margin: 0 0 5px; }
+        .subtitulo { text-align: center; color: #ffc107; margin: 0 0 25px; }
+        h3 { color: #ffc107; margin: 28px 0 10px; }
+        .btn { display: inline-block; padding: 10px 20px; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; font-size: 15px; }
+        .btn-back { background: #6c757d; }
+        .btn-promover { background: #6f42c1; font-size: 17px; padding: 14px 28px; }
+        .btn-promover:hover { background: #59359a; }
+        .btn-deshacer { background: #dc3545; font-size: 13px; padding: 7px 14px; }
+
+        .caja { background: rgba(0,0,0,0.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 15px; }
+        .caja-aviso { background: rgba(255, 193, 7, 0.18); border-left: 5px solid #ffc107; }
+        .caja-peligro { background: rgba(220, 53, 69, 0.25); border-left: 5px solid #dc3545; }
+        .caja p { margin: 6px 0; }
+
+        /* Pasos de la promoción */
+        .pasos { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+        .paso { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; text-align: center; border-top: 5px solid #17a2b8; }
+        .paso.egresan { border-top-color: #6f42c1; }
+        .paso .anio { font-size: 15px; opacity: 0.85; }
+        .paso .cantidad { font-size: 40px; font-weight: bold; line-height: 1.1; margin: 4px 0; }
+        .paso .flecha { font-size: 22px; opacity: 0.7; }
+        .paso .destino { font-weight: bold; color: #ffc107; font-size: 16px; }
+        .nuevo-primero { border-top-color: #28a745; }
+
+        details { background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 10px; }
+        summary { padding: 12px 16px; cursor: pointer; font-weight: bold; }
+        .lista-cadetes { padding: 0 16px 12px; max-height: 320px; overflow-y: auto; }
+        .cadete { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 14px; }
+        .cadete label { font-size: 13px; white-space: nowrap; cursor: pointer; opacity: 0.9; }
+        .confirmar { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; cursor: pointer; }
+        .confirmar input { transform: scale(1.4); margin-top: 4px; }
+        .acciones { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    {% include "_mensajes.html" %}
+    <a href="{% url 'lista_estudiantes' %}" class="btn btn-back">⬅️ Volver a Estudiantes</a>
+    <h1>🎓 Promoción de año</h1>
+    <p class="subtitulo">Se hace una vez al año, en febrero, al comenzar la Gestión I</p>
+
+    {% if ultima %}
+        <div class="caja {% if reciente %}caja-peligro{% endif %}">
+            <p>
+                {% if ultima.deshecha_en %}↩️{% else %}📌{% endif %}
+                Última promoción: <strong>{{ ultima.realizada_en|date:"d/m/Y H:i" }}</strong>
+                {% if ultima.realizada_por %}por {{ ultima.realizada_por.get_full_name|default:ultima.realizada_por.username }}{% endif %}
+                {% if ultima.deshecha_en %} — <em>deshecha el {{ ultima.deshecha_en|date:"d/m/Y" }}</em>{% endif %}
+            </p>
+            {% if reciente %}
+                <p><strong>⚠️ Ya se hizo una promoción hace menos de 6 meses.</strong> Si la vuelve a hacer, los cadetes subirán DOS años.
+                Si la anterior fue un error, mejor deshágala:</p>
+            {% endif %}
+            {% if not ultima.deshecha_en %}
+                <form method="POST" action="{% url 'deshacer_promocion' ultima.id %}"
+                      onsubmit="return confirm('¿Deshacer la promoción del {{ ultima.realizada_en|date:'d/m/Y' }}? Cada cadete volverá a su año y estado anteriores.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-deshacer">↩️ Deshacer esta promoción</button>
+                </form>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <h3>1️⃣ ¿Qué va a pasar?</h3>
+    <div class="pasos">
+        {% for paso in pasos %}
+            <div class="paso {% if paso.anio == 5 %}egresan{% endif %}">
+                <div class="anio">{{ paso.nombre }}</div>
+                <div class="cantidad">{{ paso.cadetes|length }}</div>
+                <div class="flecha">⬇️</div>
+                <div class="destino">{{ paso.destino }}</div>
+            </div>
+        {% endfor %}
+        <div class="paso nuevo-primero">
+            <div class="anio">1er Año</div>
+            <div class="cantidad">0</div>
+            <div class="flecha">⬇️</div>
+            <div class="destino">➕ Registre a los nuevos</div>
+        </div>
+    </div>
+
+    <div class="caja" style="margin-top: 15px;">
+        <p>🎓 <strong>Los de 5to año egresan:</strong> pasan a la lista de «Egresados» y su cuenta se desactiva.</p>
+        <p>🪖 <strong>Los de 4to año pasan a 5to:</strong> dejan de hacer guardia (5to año no hace guardia), pero siguen siendo estudiantes y pueden entrar al sistema.</p>
+        <p>🔄 <strong>El rodillo vuelve a empezar</strong> en cada año desde el primero de Sistemas, porque las filas tienen gente nueva.</p>
+        <p>🔑 Las contraseñas y los datos de los cadetes no cambian.</p>
+    </div>
+
+    {% if guardias_futuras %}
+        <div class="caja caja-aviso">
+            <p>⚠️ Hay <strong>{{ guardias_futuras }} día(s) de guardia ya generados</strong> a partir de mañana. Se armaron con los años
+            de antes de la promoción (por ejemplo, un cadete que pasa a 4to puede figurar como Sargento, o uno que pasa a 5to seguir con guardias).
+            Después de promover, elimínelos desde el admin y vuelva a generarlos.</p>
+        </div>
+    {% endif %}
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <h3>2️⃣ ¿Alguien repite el año?</h3>
+        <p style="margin-top: 0; opacity: 0.9;">Por defecto <strong>todos suben</strong>. Abra el año y marque «Repite» solo a quien se quede en su año (por ejemplo, si reprobó).</p>
+        {% for paso in pasos %}
+            {% if paso.cadetes %}
+                <details>
+                    <summary>{{ paso.nombre }} — {{ paso.cadetes|length }} cadetes ({{ paso.destino }})</summary>
+                    <div class="lista-cadetes">
+                        {% for e in paso.cadetes %}
+                            <div class="cadete">
+                                <span>{{ e.apellidos }}, {{ e.nombres }} <span style="opacity: 0.6;">· {{ e.carrera }}</span></span>
+                                <label><input type="checkbox" name="repite" value="{{ e.id }}"> Repite</label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </details>
+            {% endif %}
+        {% endfor %}
+
+        <h3>3️⃣ Confirmar</h3>
+        <div class="caja">
+            <label class="confirmar">
+                <input type="checkbox" name="confirmo" value="1" required>
+                <span>Entiendo que los cadetes de 5to año egresan y todos los demás suben un año.
+                Si me equivoco, puedo deshacerlo desde esta misma pantalla.</span>
+            </label>
+        </div>
+
+        <div class="acciones">
+            <a href="{% url 'lista_estudiantes' %}" class="btn btn-back">Cancelar</a>
+            <button type="submit" class="btn btn-promover">🎓 Realizar promoción de año</button>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

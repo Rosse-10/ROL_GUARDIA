@@ -65,10 +65,12 @@
 <body>
 
 <div class="container">
+    {% include "_mensajes.html" %}
     <a href="{% url 'home' %}" class="btn btn-home">🏠 Volver al Inicio</a>
     <h1>📋 Control de Personal (Estudiantes EMI)</h1>
     
     <a href="{% url 'nuevo_estudiante' %}" class="btn btn-primary">➕ Registrar Nuevo Estudiante</a>
+    <a href="{% url 'promocion_anio' %}" class="btn" style="background-color: #6f42c1;">🎓 Promoción de año</a>
 
     {% for carrera, anios in datos_agrupados.items %}
         <div class="carrera-section">
@@ -76,7 +78,7 @@
             
             {% for anio, estudiantes in anios.items %}
                 <div class="anio-title">
-                    {% if anio == 1 %}Primer Año{% elif anio == 2 %}Segundo Año{% elif anio == 3 %}Tercer Año{% else %}Cuarto Año{% endif %}
+                    {% if anio == 1 %}Primer Año{% elif anio == 2 %}Segundo Año{% elif anio == 3 %}Tercer Año{% elif anio == 4 %}Cuarto Año{% else %}Quinto Año <span style="font-size: 13px; opacity: 0.7;">(no hace guardia)</span>{% endif %}
                 </div>
                 
                 {% if estudiantes %}
@@ -85,6 +87,7 @@
                             <tr>
                                 <th>C.I.</th>
                                 <th>Apellidos y Nombres</th>
+                                <th>Cuenta</th>
                                 <th class="acciones">Acciones</th>
                             </tr>
                         </thead>
@@ -94,8 +97,26 @@
                                     <td>{{ e.ci|default:"S/N" }}</td>
                                     <!-- CORREGIDO: Usando apellidos y nombres en plural -->
                                     <td>{{ e.apellidos }}, {{ e.nombres }}</td>
+                                    <td>
+                                        {% if not e.usuario %}
+                                            <span style="color: #ffc107; font-weight: bold;">⚠️ Sin cuenta (falta C.I.)</span>
+                                        {% elif not e.usuario.is_active %}
+                                            <span style="opacity: 0.7;">Desactivada</span>
+                                        {% elif e.debe_cambiar_clave %}
+                                            <span style="opacity: 0.85;">Clave inicial</span>
+                                        {% else %}
+                                            <span style="color: #28a745; font-weight: bold;">● Activa</span>
+                                        {% endif %}
+                                    </td>
                                     <td class="acciones">
                                         <a href="{% url 'editar_estudiante' e.id %}" class="btn btn-edit">✏️ Editar</a>
+                                        {% if e.usuario %}
+                                            <form method="POST" action="{% url 'restablecer_clave' e.id %}" style="display:inline;"
+                                                  onsubmit="return confirm('¿Restablecer la contraseña de {{ e.apellidos|escapejs }}? Volverá a ser su primer apellido.');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-edit" style="border: none; cursor: pointer;">🔑 Restablecer clave</button>
+                                            </form>
+                                        {% endif %}
                                         <a href="{% url 'eliminar_estudiante' e.id %}" class="btn btn-delete">🗑️ Eliminar</a>
                                     </td>
                                 </tr>
@@ -108,6 +129,25 @@
             {% endfor %}
         </div>
     {% endfor %}
+
+    {% if egresados %}
+        <details class="carrera-section" style="border-left-color: #6f42c1;">
+            <summary class="carrera-title" style="cursor: pointer;">🎓 Egresados ({{ egresados|length }})</summary>
+            <table>
+                <thead><tr><th>C.I.</th><th>Apellidos y Nombres</th><th>Carrera</th><th class="acciones">Acciones</th></tr></thead>
+                <tbody>
+                    {% for e in egresados %}
+                        <tr>
+                            <td>{{ e.ci|default:"S/N" }}</td>
+                            <td>{{ e.apellidos }}, {{ e.nombres }}</td>
+                            <td>{{ e.carrera }}</td>
+                            <td class="acciones"><a href="{% url 'editar_estudiante' e.id %}" class="btn btn-edit">✏️ Editar</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+    {% endif %}
 </div>
 
 </body>

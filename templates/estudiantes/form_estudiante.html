@@ -63,10 +63,19 @@
     <h2>{{ titulo }}</h2>
     <form method="POST">
         {% csrf_token %}
+        {% for error in form.non_field_errors %}
+            <div style="background: #dc3545; padding: 10px; border-radius: 5px; margin-bottom: 15px;">{{ error }}</div>
+        {% endfor %}
         {% for field in form %}
             <div class="form-group">
-                <label>{{ field.label }}</label>
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
+                {% for error in field.errors %}
+                    <div style="color: #ffb3b3; font-weight: bold; font-size: 14px; margin-top: 5px;">⚠️ {{ error }}</div>
+                {% endfor %}
+                {% if field.help_text %}
+                    <div id="{{ field.auto_id }}_helptext" style="font-size: 12px; opacity: 0.8; margin-top: 5px;">{{ field.help_text }}</div>
+                {% endif %}
             </div>
         {% endfor %}
    <button type="submit" class="btn-submit">💾 Guardar Registro</button>

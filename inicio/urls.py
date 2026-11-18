@@ -9,6 +9,8 @@ urlpatterns = [
     path('estudiantes/nuevo/', views.nuevo_estudiante, name='nuevo_estudiante'),
     path('estudiantes/editar/<int:id>/', views.editar_estudiante, name='editar_estudiante'),
     path('estudiantes/eliminar/<int:id>/', views.eliminar_estudiante, name='eliminar_estudiante'),
+    path('estudiantes/promocion/', views.promocion_anio, name='promocion_anio'),
+    path('estudiantes/promocion/<int:id>/deshacer/', views.deshacer_promocion, name='deshacer_promocion'),
     
     # Módulo de Gestión Académica
     path('gestiones/', views.lista_gestiones, name='lista_gestiones'),
@@ -19,7 +21,8 @@ urlpatterns = [
     path('planificacion/generar/', views.generar_rango_guardias, name='generar_rango_guardias'),
     
     # Sistema de Seguridad y Cuentas
-    path('registro/', views.registro, name='registro'),
+    path('cambiar-clave/', views.cambiar_clave, name='cambiar_clave'),
+    path('estudiantes/<int:id>/restablecer-clave/', views.restablecer_clave, name='restablecer_clave'),
 
     path('gestiones/editar/<int:id>/', views.editar_gestion, name='editar_gestion'),
     path('gestiones/eliminar/<int:id>/', views.eliminar_gestion, name='eliminar_gestion'),

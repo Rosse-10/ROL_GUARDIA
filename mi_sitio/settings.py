@@ -48,6 +48,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'inicio.middleware.ForzarCambioClaveMiddleware',  # Cadetes con clave inicial deben cambiarla
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -63,6 +64,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'inicio.context_processors.rol_usuario',
             ],
         },
     },
@@ -104,9 +106,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/La_Paz'  # Hora de Bolivia (UTC-4)
 
 USE_I18N = True
 
@@ -127,8 +129,4 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 
-# CONFIGURACIÓN DE AUTENTICACIÓN PERSONALIZADA 
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',  # Mantiene el acceso de Superusuarios
-    'inicio.authentication.EstudianteAuthBackend', # Habilita el acceso automático de estudiantes
-]
+# Autenticación: backend estándar de Django (usuario = CI del cadete, o cuenta del oficial)

@@ -1,0 +1,7 @@
+{% if c.tipo == 'PERMUTA' %}
+    <p>🔁 <strong>{{ c.estudiante_origen.apellidos }}</strong> ({{ c.detalle_origen.guardia.fecha|date:"d/m/Y" }} · {{ c.detalle_origen.puesto.nombre }})
+    ⇄ <strong>{{ c.estudiante_destino.apellidos }}</strong> ({{ c.detalle_destino.guardia.fecha|date:"d/m/Y" }} · {{ c.detalle_destino.puesto.nombre }})</p>
+{% else %}
+    <p>➕ <strong>{{ c.estudiante_destino.apellidos }}</strong> cubre a <strong>{{ c.estudiante_origen.apellidos }}</strong>
+    el {{ c.detalle_origen.guardia.fecha|date:"d/m/Y" }} ({{ c.detalle_origen.puesto.nombre }})</p>
+{% endif %}

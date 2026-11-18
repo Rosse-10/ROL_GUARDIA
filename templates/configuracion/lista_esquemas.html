@@ -11,7 +11,7 @@
             padding: 30px;
         }
         .container {
-            max-width: 900px;
+            max-width: 1100px;
             margin: 0 auto;
             background: rgba(255, 255, 255, 0.1);
             padding: 30px;
@@ -63,6 +63,7 @@
 <body>
 
 <div class="container">
+    {% include "_mensajes.html" %}
     <a href="{% url 'home' %}" class="btn btn-home">🏠 Volver al Inicio</a>
     <h1>🛡️ Esquemas de Guardia</h1>
     <h2>Configuración de Esquemas Operativos (A / B)</h2>
@@ -73,29 +74,48 @@
         <thead>
             <tr>
                 <th>Nombre del Esquema</th>
-                <th>Estado</th>
+                <th>Puestos</th>
+                <th>Vigencias</th>
+                <th>Hoy</th>
                 <th style="text-align: center;">Acciones</th>
             </tr>
         </thead>
         <tbody>
             {% for e in esquemas %}
                 <tr>
-                    <td>{{ e.nombre }}</td>
+                    <td><strong>{{ e.nombre }}</strong></td>
+                    <td style="font-size: 13px;">
+                        {% for p in e.puesto_set.all %}
+                            {{ p.nombre }} <span style="opacity: 0.7;">({{ p.anio_requerido }}° año)</span><br>
+                        {% empty %}
+                            <span style="color: #ffc107; font-weight: bold;">⚠️ Sin puestos: el rodillo no puede usarlo</span>
+                        {% endfor %}
+                    </td>
+                    <td style="font-size: 13px;">
+                        {% for v in e.esquemavigencia_set.all %}
+                            {{ v.fecha_desde|date:"d/m/Y" }} → {% if v.fecha_hasta %}{{ v.fecha_hasta|date:"d/m/Y" }}{% else %}sin fin{% endif %}<br>
+                        {% empty %}
+                            <span style="opacity: 0.7;">Sin fechas cargadas</span>
+                        {% endfor %}
+                    </td>
                     <td>
-                        {% if e.activo %}
-                            <span style="color: #28a745; font-weight: bold;">● Activo</span>
+                        {% if e.vigente_hoy %}
+                            <span style="color: #28a745; font-weight: bold;">🟢 Vigente hoy</span>
                         {% else %}
-                            <span style="color: #6c757d;">Inactivo</span>
+                            <span style="color: #adb5bd;">No rige hoy</span>
                         {% endif %}
                     </td>
                     <td style="text-align: center;">
                         <a href="{% url 'editar_esquema' e.id %}" class="btn btn-edit">✏️ Editar</a>
-                        <a href="{% url 'eliminar_esquema' e.id %}" class="btn btn-delete" onclick="return confirm('¿Estás seguro de eliminar este esquema?');">🗑️ Eliminar</a>
+                        <form method="POST" action="{% url 'eliminar_esquema' e.id %}" style="display:inline;" onsubmit="return confirm('¿Estás seguro de eliminar este esquema?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-delete">🗑️ Eliminar</button>
+                        </form>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="3" class="vacio">No hay esquemas de guardia registrados todavía.</td>
+                    <td colspan="5" class="vacio">No hay esquemas de guardia registrados todavía.</td>
                 </tr>
             {% endfor %}
         </tbody>

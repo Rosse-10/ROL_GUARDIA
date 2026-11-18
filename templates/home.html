@@ -302,6 +302,7 @@
 <body>
 
 <div class="container">
+    {% include "_mensajes.html" %}
 
     <!-- ENCABEZADO -->
     <div class="header">
@@ -331,16 +332,17 @@
 
         👤
 
-        {% if user.is_superuser %}
+        {% if es_oficial %}
             🟢 ROL DE GUARDIA DE LA UAT
         {% else %}
             👨‍🎓 ESTUDIANTE: {{ user.first_name }} {{ user.last_name }}
         {% endif %}
+        · <a href="{% url 'cambiar_clave' %}" style="color: inherit;">🔑 Cambiar contraseña</a>
 
     </div>
 
     <!-- MENÚ DEL ADMINISTRADOR -->
-    {% if user.is_superuser %}
+    {% if es_oficial %}
 
         <div class="menu-admin">
 
@@ -386,7 +388,7 @@
                    style="background: #6f42c1;">
 
                     🔄 Cambios y Permutas
-
+                    {% if cambios_pendientes %}<span class="badge-contador">{{ cambios_pendientes }} por aprobar</span>{% endif %}
                 </a>
 
             </div>
@@ -403,6 +405,7 @@
                 </a>
                 <a href="{% url 'gestion_permutas' %}" class="btn-operativo" style="background: #6f42c1;">
                     🔄 Cambios y Permutas
+                    {% if cambios_pendientes %}<span class="badge-contador">{{ cambios_pendientes }} te pidieron cambio</span>{% endif %}
                 </a>
             </div>
         </div>
@@ -460,55 +463,18 @@
             </div>
 
             {% if guardia_hoy %}
-
-                <div class="puesto-line">
-                    Comandante de Guardia (4to Año):
-                    <span class="puesto-nombre">
-                        {{ guardia_hoy.estudiante_4to.apellidos }},
-                        {{ guardia_hoy.estudiante_4to.nombres }}
-                    </span>
-                </div>
-
-                <div class="puesto-line">
-                    Sargento de Guardia (3ro Año):
-                    <span class="puesto-nombre">
-                        {{ guardia_hoy.estudiante_3ro.apellidos }},
-                        {{ guardia_hoy.estudiante_3ro.nombres }}
-                    </span>
-                </div>
-
-                <div class="puesto-line">
-                    Número de Guardia (2do Año):
-                    <span class="puesto-nombre">
-                        {{ guardia_hoy.estudiante_2do_1.apellidos }},
-                        {{ guardia_hoy.estudiante_2do_1.nombres }}
-                    </span>
-                </div>
-
-                <div class="puesto-line">
-                    Número de Guardia (2do Año):
-                    <span class="puesto-nombre">
-                        {{ guardia_hoy.estudiante_2do_2.apellidos }},
-                        {{ guardia_hoy.estudiante_2do_2.nombres }}
-                    </span>
-                </div>
-
-                <div class="puesto-line">
-                    Número de Guardia (1ro Año):
-                    <span class="puesto-nombre">
-                        {{ guardia_hoy.estudiante_1ro_1.apellidos }},
-                        {{ guardia_hoy.estudiante_1ro_1.nombres }}
-                    </span>
-                </div>
-
-                <div class="puesto-line">
-                    Número de Guardia (1ro Año):
-                    <span class="puesto-nombre">
-                        {{ guardia_hoy.estudiante_1ro_2.apellidos }},
-                        {{ guardia_hoy.estudiante_1ro_2.nombres }}
-                    </span>
-                </div>
-
+                <div class="puesto-line" style="opacity: 0.8;">Esquema: <strong>{{ guardia_hoy.esquema.nombre }}</strong></div>
+                {% for d in guardia_hoy.detalles.all %}
+                    <div class="puesto-line">
+                        {{ d.puesto.nombre }} ({{ d.puesto.anio_requerido }}° Año):
+                        <span class="puesto-nombre">{{ d.estudiante.apellidos }}, {{ d.estudiante.nombres }}</span>
+                        {% if d.asistencia == 'LICENCIA' or d.asistencia == 'PERMISO' %}
+                            <span style="background: #fd7e14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">🩺 {{ d.get_asistencia_display }}</span>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="no-servicio">La guardia de hoy no tiene puestos asignados.</div>
+                {% endfor %}
             {% else %}
 
                 <div class="no-servicio">
@@ -529,63 +495,30 @@
             <h3>📅 Previsión de la Semana Entrante</h3>
 
             <table>
-
                 <thead>
                     <tr>
                         <th>Fecha</th>
-                        <th>Comandante de Guardia</th>
-                        <th>Sargento de Guardia</th>
-                        <th>Números de Guardia (2do)</th>
-                        <th>Números de Guardia (1ro)</th>
+                        <th>Comandante de Guardia (4to)</th>
+                        <th>Sargento de Guardia (3ro)</th>
+                        <th>Números de Guardia</th>
                     </tr>
                 </thead>
-
                 <tbody>
-
                     {% for g in guardias_semana %}
-
                         <tr>
-
+                            <td><span class="fecha-badge">{{ g.fecha|date:"d/m/Y" }}</span></td>
+                            <td>{% if g.comandante %}{{ g.comandante.estudiante.apellidos }}, {{ g.comandante.estudiante.nombres|slice:":1" }}.{% endif %}</td>
+                            <td>{% if g.sargento %}{{ g.sargento.estudiante.apellidos }}, {{ g.sargento.estudiante.nombres|slice:":1" }}.{% endif %}</td>
                             <td>
-                                <span class="fecha-badge">
-                                    {{ g.fecha|date:"d/m/Y" }}
-                                </span>
+                                {% for d in g.numeros %}{{ d.estudiante.apellidos }} <small style="opacity: 0.7;">({{ d.puesto.anio_requerido }}°)</small>{% if not forloop.last %} · {% endif %}{% endfor %}
                             </td>
-
-                            <td>
-                                {{ g.estudiante_4to.apellidos }},
-                                {{ g.estudiante_4to.nombres|slice:":1" }}.
-                            </td>
-
-                            <td>
-                                {{ g.estudiante_3ro.apellidos }},
-                                {{ g.estudiante_3ro.nombres|slice:":1" }}.
-                            </td>
-
-                            <td>
-                                {{ g.estudiante_2do_1.apellidos }} /
-                                {{ g.estudiante_2do_2.apellidos }}
-                            </td>
-
-                            <td>
-                                {{ g.estudiante_1ro_1.apellidos }} /
-                                {{ g.estudiante_1ro_2.apellidos }}
-                            </td>
-
                         </tr>
-
                     {% empty %}
-
                         <tr>
-                            <td colspan="5" class="no-servicio">
-                                No hay roles planificados para esta semana.
-                            </td>
+                            <td colspan="4" class="no-servicio">No hay roles planificados para esta semana.</td>
                         </tr>
-
                     {% endfor %}
-
                 </tbody>
-
             </table>
 
         </div>
@@ -597,7 +530,7 @@
 
         <div class="tabla-box">
 
-            <h3>📋 Rol Completo Planificado Acumulado</h3>
+            <h3>📋 Rol de Guardia de {{ inicio_mes|date:"F Y"|capfirst }}</h3>
 
             <div class="no-print" style="margin-bottom: 15px; text-align: right;">
 
@@ -611,63 +544,30 @@
             </div>
 
             <table>
-
                 <thead>
                     <tr>
                         <th>Fecha</th>
                         <th>Comandante de Guardia (4to)</th>
                         <th>Sargento de Guardia (3ro)</th>
-                        <th>Números de Guardia (2do)</th>
-                        <th>Números de Guardia (1ro)</th>
+                        <th>Números de Guardia</th>
                     </tr>
                 </thead>
-
                 <tbody>
-
                     {% for g in guardias_mes %}
-
                         <tr>
-
+                            <td><span class="fecha-badge">{{ g.fecha|date:"d/m/Y" }}</span></td>
+                            <td>{% if g.comandante %}{{ g.comandante.estudiante.apellidos }}, {{ g.comandante.estudiante.nombres }}{% endif %}</td>
+                            <td>{% if g.sargento %}{{ g.sargento.estudiante.apellidos }}, {{ g.sargento.estudiante.nombres }}{% endif %}</td>
                             <td>
-                                <span class="fecha-badge">
-                                    {{ g.fecha|date:"d/m/Y" }}
-                                </span>
+                                {% for d in g.numeros %}{{ d.estudiante.apellidos }} <small style="opacity: 0.7;">({{ d.puesto.anio_requerido }}°)</small>{% if not forloop.last %} · {% endif %}{% endfor %}
                             </td>
-
-                            <td>
-                                {{ g.estudiante_4to.apellidos }},
-                                {{ g.estudiante_4to.nombres }}
-                            </td>
-
-                            <td>
-                                {{ g.estudiante_3ro.apellidos }},
-                                {{ g.estudiante_3ro.nombres }}
-                            </td>
-
-                            <td>
-                                {{ g.estudiante_2do_1.apellidos }} y
-                                {{ g.estudiante_2do_2.apellidos }}
-                            </td>
-
-                            <td>
-                                {{ g.estudiante_1ro_1.apellidos }} y
-                                {{ g.estudiante_1ro_2.apellidos }}
-                            </td>
-
                         </tr>
-
                     {% empty %}
-
                         <tr>
-                            <td colspan="5" class="no-servicio">
-                                No hay roles planificados para este mes.
-                            </td>
+                            <td colspan="4" class="no-servicio">No hay guardias generadas para este mes.</td>
                         </tr>
-
                     {% endfor %}
-
                 </tbody>
-
             </table>
 
         </div>

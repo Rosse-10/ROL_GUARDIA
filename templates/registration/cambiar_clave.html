@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cambiar contraseña</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #4e73df, #1cc88a);
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .card {
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h2 { margin-top: 0; text-align: center; }
+        .aviso-clave { background: #fff3cd; color: #664d03; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+        label { font-weight: bold; font-size: 14px; display: block; margin-top: 12px; }
+        input { width: 100%; padding: 10px; margin-top: 6px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        .ayuda { font-size: 12px; color: #666; margin-top: 4px; }
+        .ayuda ul { margin: 4px 0 0; padding-left: 18px; }
+        .error { color: #dc3545; font-size: 13px; margin-top: 4px; }
+        button { width: 100%; padding: 10px; margin-top: 20px; background: #4e73df; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; }
+        button:hover { background: #2e59d9; }
+        .acciones { display: flex; justify-content: space-between; margin-top: 15px; font-size: 14px; }
+        .acciones a, .acciones button.link { color: #4e73df; background: none; border: none; padding: 0; margin: 0; width: auto; cursor: pointer; font-size: 14px; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🔑 Cambiar contraseña</h2>
+
+        {% if obligatorio %}
+            <div class="aviso-clave">
+                Está usando la contraseña inicial (su primer apellido). Por seguridad, elija una nueva para continuar.
+            </div>
+        {% endif %}
+
+        <form method="POST">
+            {% csrf_token %}
+            {% for error in form.non_field_errors %}<div class="error">{{ error }}</div>{% endfor %}
+            {% for campo in form %}
+                <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+                {{ campo }}
+                {% for error in campo.errors %}<div class="error">{{ error }}</div>{% endfor %}
+                {% if campo.help_text %}<div class="ayuda">{{ campo.help_text|safe }}</div>{% endif %}
+            {% endfor %}
+            <button type="submit">Guardar nueva contraseña</button>
+        </form>
+
+        <div class="acciones">
+            {% if not obligatorio %}<a href="{% url 'home' %}">⬅️ Volver</a>{% else %}<span></span>{% endif %}
+            <form action="{% url 'logout' %}" method="post" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit" class="link">Cerrar sesión</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
